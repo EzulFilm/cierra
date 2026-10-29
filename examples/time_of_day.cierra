@@ -1,0 +1,40 @@
+# A keyframed time-of-day change on one shot: late afternoon becomes golden hour and then blue hour over ten seconds
+# (240 frames at 24 fps), the kind of "the day passes" move used in time-lapses, title sequences and transitions.
+# Every moving value is a keys(...) track; smooth keys ease in and out without overshoot, linear keys move at a
+# steady rate.
+#   light         exposure: steady to golden hour, then falling over a stop and a half into blue hour
+#   sun_colour    the balance: neutral, then warm at golden hour (frame 120), then cold blue at dusk; keyed off
+#                 the blue sky (not a hue qualifier), since warm light on a blue sky only turns it grey
+#   golden_clouds peach light on the clouds and haze at the top of the frame (graduated window AND NOT the blue
+#                 sky key) that rises and fades: its mix is keyframed, so the whole node fades in and out
+#   dusk_sky      the sky darker and deeper blue as the light goes, also faded in by mix
+#   evening_glow  bloom on the bright parts at golden hour only (strength keyed)
+#   dusk_colour   colour drains as the light goes, the eye's colour vision fading at dusk
+# Use it as a pattern for any slow change in a shot: relight, a lamp switching on, a cloud passing.
+cierra 0.1
+name "time of day"
+about "Keyframed: late afternoon (frame 0) to golden hour (120) to blue hour (240), at 24 fps."
+input aces2065_1
+output aces2(display: rec1886)
+fps 24
+
+node light = exposure(stops: keys(smooth, 0: 0, 120: -0.2, 240: -1.6))
+  label "light falls after golden hour"
+node sun_colour = white_balance(temperature: keys(smooth, 0: 0, 120: 0.45, 240: -0.5), tint: keys(smooth, 0: 0, 120: 0.02, 240: 0.03))
+  label "neutral, warm, then cold, on everything but the blue sky"
+  mask not qualifier(hue: 290..30, sat: 0.015..1, soft: 0.15)
+node golden_clouds = wheels(gain: [0.03, 0.018, -0.02], gamma: [0.015, 0.01, -0.01])
+  label "peach light on clouds and haze, not on the blue"
+  mask graduated(centre: [0.5, 0.45], angle: 90, falloff: [0.3, 0.4]) and not qualifier(hue: 290..30, sat: 0.015..1, soft: 0.15)
+  mix keys(smooth, 0: 0, 120: 1, 200: 0)
+node dusk_sky = exposure(stops: -0.8)
+  label "the sky goes deep"
+  mask graduated(centre: [0.5, 0.5], angle: 90, falloff: [0.2, 0.4])
+  mix keys(linear, 0: 0, 120: 0, 240: 1)
+node dusk_blue = white_balance(temperature: -0.3)
+  mask graduated(centre: [0.5, 0.5], angle: 90, falloff: [0.2, 0.4])
+  mix keys(linear, 0: 0, 120: 0, 240: 1)
+node evening_glow = glow(threshold: 0.55, radius_px: 50, strength: keys(smooth, 0: 0, 120: 0.25, 200: 0))
+node dusk_colour = saturation(amount: keys(smooth, 0: 1, 120: 1.1, 240: 0.7))
+
+graph light -> sun_colour -> golden_clouds -> dusk_sky -> dusk_blue -> evening_glow -> dusk_colour

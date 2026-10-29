@@ -1,0 +1,34 @@
+# A documentary correction from camera log: footage from a Sony camera recorded in S-Log3 / S-Gamut3.Cine. The job is
+# not a look but a clean, honest, consistent picture: the input transform does the heavy lifting (log to ACEScct
+# through the OpenColorIO studio config), then small corrections a colourist makes on every shot of an interview or
+# observational film, before any creative grade.
+#   balance       the on-set CDL from the DIT, carried over as is (slope / offset / power / sat), so the edit and
+#                 the grade start from the same picture
+#   exposure_trim a small trim shot to shot
+#   neutral       take out the slight green of mixed daylight and practicals
+#   tone          a gentle contrast, pivot in the lower mids so the blacks stay clean
+#   room_tone     recover the windows and open the faces in the shade (local tone, like a dodge and burn), the
+#                 most used correction on available-light documentary
+#   colour        a touch more colour, skin protected so faces do not go red
+#   calm_greens   foliage and fluorescent greens calmed, they look harsh in Rec.709
+#   detail        light sharpening with noise coring, so grain in the shadows is not sharpened
+# Use it as the base of a documentary or reality grade; output Rec.1886 for broadcast.
+cierra 0.1
+name "documentary from S-Log3"
+about "Sony S-Log3 / S-Gamut3.Cine in; on-set CDL, small trims, local tone, honest colour; Rec.1886 out."
+input sony_slog3_sgamut3cine
+output aces2(display: rec1886)
+
+node balance = cdl(slope: [1.01, 1, 0.99], offset: [0, 0, 0.002], sat: 1.02)
+  label "on-set CDL from the DIT"
+node exposure_trim = exposure(stops: 0.15)
+node neutral = white_balance(tint: 0.02)
+  label "a little less green"
+node tone = contrast(amount: 1.06, pivot: 0.36)
+node room_tone = highlights_shadows(highlights: -0.8, shadows: 0.5, radius_px: 80)
+  label "windows back, shade opened"
+node colour = saturation(amount: 1.06, protect_skin: 0.8)
+node calm_greens = hue_vs_sat(points: [[206, 0.88, 35]])
+node detail = sharpen(amount: 0.2, radius_px: 1.2, coring: 0.01)
+
+graph balance -> exposure_trim -> neutral -> tone -> room_tone -> colour -> calm_greens -> detail

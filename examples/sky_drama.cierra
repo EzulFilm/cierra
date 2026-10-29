@@ -1,0 +1,39 @@
+# Sky drama: a flat midday sky made deep and rich without touching the land or the subject in front of it. The key
+# is the intersection of two mattes: a hue / saturation key that finds the blue, AND a graduated window that only
+# allows the top of the frame, so blue clothes or water below the horizon are safe and the tree's branches (dark,
+# no colour) fall out of the key by themselves. A real sky is a pale cyan-blue (hue ~325 here, chroma ~0.03), so the
+# key is wide and low; clip_black / clip_white then firm it up, so the sky moves as one piece and the blue seen
+# through fine twigs (a partial key) is darkened too, instead of leaving a light halo round the branches.
+#   sky_down      the sky darker (the graduated filter of a stills photographer, but only on blue)
+#   sky_colour    a richer blue, same matte
+#   sky_depth     blues darker still by hue (hue_vs_lum), so the sky deepens most where it is bluest
+#   ground_warm   the land below the horizon (NOT a graduated window on the horizon line) warmer ...
+#   ground_lift   ... and a touch brighter
+#   texture       wide local contrast on the ground only (on the sky it would halo the branches)
+#   shape         a gentle S for depth
+# Use it for landscapes and architecture with a clear sky; put the sky windows' graduated centre just below your horizon and the ground one on it.
+cierra 0.1
+name "sky drama"
+about "A blue key AND a graduated window: deep, rich sky; warm ground; crisp texture."
+input aces2065_1
+output aces2(display: rec1886)
+
+node sky_down = exposure(stops: -0.6)
+  label "sky darker"
+  mask qualifier(hue: 290..30, sat: 0.008..1, soft: 0.1, clip_black: 0.05, clip_white: 0.4) and graduated(centre: [0.5, 0.82], angle: 90, falloff: [0.02, 0.04])
+node sky_colour = saturation(amount: 1.35)
+  label "richer blue"
+  mask qualifier(hue: 290..30, sat: 0.008..1, soft: 0.1, clip_black: 0.05, clip_white: 0.4) and graduated(centre: [0.5, 0.82], angle: 90, falloff: [0.02, 0.04])
+node sky_depth = hue_vs_lum(points: [[335, -0.04, 45]])
+  label "the bluest blue darker"
+node ground_warm = white_balance(temperature: 0.15)
+  label "warm ground"
+  mask not graduated(centre: [0.5, 0.77], angle: 90, falloff: [0.02, 0.03])
+node ground_lift = exposure(stops: 0.2)
+  mask not graduated(centre: [0.5, 0.77], angle: 90, falloff: [0.02, 0.03])
+node texture = local_contrast(amount: 0.25, radius_px: 80)
+  label "crisp stubble, ground only"
+  mask not graduated(centre: [0.5, 0.77], angle: 90, falloff: [0.02, 0.03])
+node shape = curve(points: [[0.0729, 0.0729], [0.25, 0.235], [0.4136, 0.4136], [0.6, 0.615], [1, 0.98]])
+
+graph sky_down -> sky_colour -> sky_depth -> ground_warm -> ground_lift -> texture -> shape

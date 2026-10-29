@@ -1,0 +1,269 @@
+{
+ "format": "cierra-sbom-1",
+ "packages": [
+  {
+   "name": "annotated-types",
+   "version": "0.8.0",
+   "licence": "MIT",
+   "role": "llm"
+  },
+  {
+   "name": "anthropic",
+   "version": "2.3.0",
+   "licence": "Apache Software License",
+   "role": "llm"
+  },
+  {
+   "name": "anyio",
+   "version": "4.15.1",
+   "licence": "MIT",
+   "role": "llm"
+  },
+  {
+   "name": "cffi",
+   "version": "2.1.1",
+   "licence": "MIT-0",
+   "role": "dev"
+  },
+  {
+   "name": "cierra",
+   "version": "0.1.0",
+   "licence": "Apache-2.0",
+   "role": "dev"
+  },
+  {
+   "name": "colour-science",
+   "version": "0.4.7",
+   "licence": "BSD-3-Clause",
+   "role": "dev",
+   "reviewed": "LICENSE in the colour repository (colour-science/colour); metadata says only 'OSI Approved'. Dev / tests only"
+  },
+  {
+   "name": "docstring-parser",
+   "version": "0.18.0",
+   "licence": "MIT License",
+   "role": "llm"
+  },
+  {
+   "name": "h11",
+   "version": "0.16.0",
+   "licence": "MIT License",
+   "role": "llm"
+  },
+  {
+   "name": "httpcore2",
+   "version": "2.16.0",
+   "licence": "BSD-3-Clause",
+   "role": "llm"
+  },
+  {
+   "name": "httpx2",
+   "version": "2.16.0",
+   "licence": "BSD-3-Clause",
+   "role": "llm"
+  },
+  {
+   "name": "idna",
+   "version": "3.20",
+   "licence": "BSD-3-Clause",
+   "role": "llm"
+  },
+  {
+   "name": "iniconfig",
+   "version": "2.3.1",
+   "licence": "MIT",
+   "role": "dev"
+  },
+  {
+   "name": "jiter",
+   "version": "0.18.0",
+   "licence": "MIT",
+   "role": "llm"
+  },
+  {
+   "name": "numpy",
+   "version": "2.5.4",
+   "licence": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+   "role": "runtime"
+  },
+  {
+   "name": "opencolorio",
+   "version": "2.6.0",
+   "licence": "BSD-3-Clause",
+   "role": "runtime",
+   "reviewed": "LICENSE in the OpenColorIO repository; PyPI metadata gives only a copyright line"
+  },
+  {
+   "name": "openexr",
+   "version": "3.5.2",
+   "licence": "BSD-3-Clause",
+   "role": "dev",
+   "reviewed": "LICENSE.md in the OpenEXR repository (AcademySoftwareFoundation/openexr); the wheel's metadata gives none. Dev / tests only"
+  },
+  {
+   "name": "opentelemetry-api",
+   "version": "1.45.1",
+   "licence": "Apache-2.0",
+   "role": "llm"
+  },
+  {
+   "name": "packaging",
+   "version": "26.3",
+   "licence": "Apache-2.0 OR BSD-2-Clause",
+   "role": "dev"
+  },
+  {
+   "name": "pillow",
+   "version": "13.0.0",
+   "licence": "MIT-CMU",
+   "role": "images"
+  },
+  {
+   "name": "pip",
+   "version": "26.2.2",
+   "licence": "MIT",
+   "role": "dev"
+  },
+  {
+   "name": "pip-licenses",
+   "version": "5.5.5",
+   "licence": "MIT",
+   "role": "dev"
+  },
+  {
+   "name": "pluggy",
+   "version": "1.7.0",
+   "licence": "MIT License",
+   "role": "dev"
+  },
+  {
+   "name": "prettytable",
+   "version": "3.18.0",
+   "licence": "BSD-3-Clause",
+   "role": "dev"
+  },
+  {
+   "name": "pycparser",
+   "version": "3.12",
+   "licence": "BSD-3-Clause",
+   "role": "dev"
+  },
+  {
+   "name": "pydantic",
+   "version": "2.14.1",
+   "licence": "MIT",
+   "role": "llm"
+  },
+  {
+   "name": "pydantic-core",
+   "version": "2.50.1",
+   "licence": "MIT",
+   "role": "llm"
+  },
+  {
+   "name": "pygments",
+   "version": "2.21.0",
+   "licence": "BSD-2-Clause",
+   "role": "dev"
+  },
+  {
+   "name": "pytest",
+   "version": "9.1.1",
+   "licence": "MIT",
+   "role": "dev"
+  },
+  {
+   "name": "rawpy",
+   "version": "0.27.1",
+   "licence": "MIT (wrapper); bundles LibRaw, LGPL-2.1 or CDDL-1.0 at the user's choice",
+   "role": "raw",
+   "reviewed": "LICENSE in the rawpy 0.27.1 wheel and LibRaw's COPYRIGHT; optional `raw` extra used only by tools/raw_to_video.py, never imported by the library"
+  },
+  {
+   "name": "rendercanvas",
+   "version": "2.7.2",
+   "licence": "BSD-2-Clause",
+   "role": "dev",
+   "reviewed": "LICENSE in the rendercanvas 2.7.2 wheel (no licence field in its metadata); pulled in by wgpu. Dev / tests only"
+  },
+  {
+   "name": "scipy",
+   "version": "1.18.1",
+   "licence": "BSD License",
+   "role": "runtime"
+  },
+  {
+   "name": "sniffio",
+   "version": "1.3.1",
+   "licence": "MIT License; Apache Software License",
+   "role": "llm"
+  },
+  {
+   "name": "tifffile",
+   "version": "2026.10.15",
+   "licence": "BSD-3-Clause",
+   "role": "dev"
+  },
+  {
+   "name": "truststore",
+   "version": "0.10.5",
+   "licence": "MIT",
+   "role": "llm"
+  },
+  {
+   "name": "typing-extensions",
+   "version": "4.16.0",
+   "licence": "PSF-2.0",
+   "role": "llm"
+  },
+  {
+   "name": "typing-inspection",
+   "version": "0.4.4",
+   "licence": "MIT",
+   "role": "llm"
+  },
+  {
+   "name": "wcwidth",
+   "version": "0.9.4",
+   "licence": "MIT License",
+   "role": "dev"
+  },
+  {
+   "name": "wgpu",
+   "version": "0.32.0",
+   "licence": "BSD-2-Clause",
+   "role": "dev",
+   "reviewed": "LICENSE in the wgpu-py 0.32.0 wheel (metadata says 'BSD 2-Clause License'); the bundled libwgpu_native is MIT OR Apache-2.0 (gfx-rs/wgpu-native). Dev / tests only"
+  }
+ ],
+ "external": [
+  {
+   "name": "FFmpeg",
+   "version": "user-installed",
+   "licence": "LGPL-2.1+ (GPL when built with x264 / x265)",
+   "role": "external-program",
+   "reviewed": "called as a separate process by tools/raw_to_video.py; not shipped or linked. ProRes-compatible output uses FFmpeg's prores_ks encoder"
+  },
+  {
+   "name": "llama.cpp",
+   "version": "b11580 (4413a19)",
+   "licence": "MIT",
+   "role": "llm-server",
+   "reviewed": "LICENSE in ggml-org/llama.cpp; built from source by tools/setup_llm.sh"
+  },
+  {
+   "name": "Qwen2.5-7B-Instruct-GGUF (Q4_K_M)",
+   "version": "SHA-256 in tools/setup_llm.sh",
+   "licence": "Apache-2.0",
+   "role": "llm-weights",
+   "reviewed": "model card of Qwen/Qwen2.5-7B-Instruct-GGUF; downloaded on request, not shipped"
+  },
+  {
+   "name": "Qwen2.5-1.5B-Instruct-GGUF (Q4_K_M)",
+   "version": "SHA-256 in tools/setup_llm.sh",
+   "licence": "Apache-2.0",
+   "role": "llm-weights",
+   "reviewed": "model card of Qwen/Qwen2.5-1.5B-Instruct-GGUF; downloaded on request, not shipped"
+  }
+ ]
+}

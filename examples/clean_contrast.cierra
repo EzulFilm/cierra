@@ -1,0 +1,9 @@
+# More mid-tone contrast that keeps black and 18 % grey where they are and rolls the top off softly.
+# Points are ACEScct code values: black 0.0729, 18 % grey 0.4136, display white near 1.
+cierra 0.1
+name "clean contrast"
+output aces2(display: srgb)
+
+node shape = curve(points: [[0.0729, 0.0729], [0.25, 0.235], [0.4136, 0.4136], [0.6, 0.615], [1, 0.97]])
+
+graph shape

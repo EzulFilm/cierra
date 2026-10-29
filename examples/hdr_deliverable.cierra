@@ -1,0 +1,31 @@
+# The same grade delivered in HDR: footage from an ARRI camera (LogC4) graded once and output through the ACES 2.0
+# HDR transform, PQ (Rec.2100) at 1000 nits in P3-D65, the usual streaming HDR master. Because the grade works on
+# scene light (ACEScct) and the output transform makes the picture for the display, switching the output line
+# between aces2(display: rec1886) and aces2(display: pq_p3_1000) gives the SDR and HDR versions of one grade; only a
+# few choices change for HDR:
+#   shape         contrast in the mids only; the highlights are left for the HDR transform to place (no shoulder
+#                 baked in: in HDR a baked-in shoulder flattens the specular highlights the format is for)
+#   warmth        a warm, sunny balance
+#   richer        a little more colour, skin protected
+#   hold_cyan     the HDR transform shows saturated cyans and blues brighter than SDR: keep them in check
+#   tame          (first in the graph) gamut compression of the most saturated colours, since the camera gamut is
+#                 wider than P3: no hue skews or clipped flat areas on neon, sky or foliage in the wide-gamut master
+#   clarity       a little local contrast, it reads stronger in HDR so keep it light
+# Use it as the template for an HDR deliverable; for the HLG broadcast version use aces2(display: hlg_p3_1000).
+cierra 0.1
+name "HDR deliverable"
+about "ARRI LogC4 in, a warm natural grade, PQ 1000-nit P3-D65 out; the same program gives SDR with rec1886."
+input arri_logc4
+output aces2(display: pq_p3_1000)
+
+node shape = curve(points: [[0.0729, 0.0729], [0.25, 0.24], [0.4136, 0.4136], [0.55, 0.565], [0.7, 0.71]])
+  label "mid contrast, highlights left to the HDR transform"
+node warmth = white_balance(temperature: 0.12)
+node richer = saturation(amount: 1.08, protect_skin: 0.7)
+node hold_cyan = hue_vs_sat(points: [[300, 0.85, 40], [350, 0.92, 35]])
+  label "saturated cyan and blue held back"
+node tame = gamut_compress(power: 1.4)
+  label "wide camera gamut into P3 cleanly"
+node clarity = local_contrast(amount: 0.1, radius_px: 150)
+
+graph tame -> shape -> warmth -> richer -> hold_cyan -> clarity

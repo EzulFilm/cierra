@@ -1,0 +1,31 @@
+# High-contrast black and white through a "red filter". A black-and-white conversion is a choice of how much each
+# colour channel counts: a red filter on the lens (or here, the channel mixer) makes red and skin light, and blue sky
+# and foliage dark, so clouds stand out and faces glow. Desaturating instead would weigh the channels by luma and
+# give a flat grey picture.
+#   red_filter    rgb_mixer with the same row for red, green and blue: one monochrome channel made from mostly red,
+#                 some green and a little negative blue (the row sums to 1, so neutral greys keep their level)
+#   print         a hard S curve: deep blacks, bright whites, the separation of a graded fibre print
+#   clarity       wide local contrast for the "dodged and burned" look of a darkroom print
+#   sky_burn      the top of the frame burned in, as a printer would under the enlarger
+#   grain         monochrome grain, a fast stock look
+#   edges         a soft vignette
+# Use it for portraits, street, landscapes with dramatic skies; swap the mixer row for other filters (green filter:
+# [0.2, 0.9, -0.1] lightens foliage; blue filter darkens skin and lightens sky).
+cierra 0.1
+name "black and white, red filter"
+about "Monochrome from mostly red: dark skies, bright skin; a hard print curve, darkroom clarity, grain."
+input aces2065_1
+output aces2(display: rec1886)
+
+node red_filter = rgb_mixer(red: [1, 0.2, -0.2], green: [1, 0.2, -0.2], blue: [1, 0.2, -0.2])
+  label "monochrome from mostly red"
+node print = curve(points: [[0.0729, 0.0729], [0.22, 0.18], [0.4136, 0.42], [0.6, 0.66], [0.9, 0.95], [1.2, 1.1]])
+  label "hard print S"
+node clarity = local_contrast(amount: 0.3, radius_px: 120)
+node sky_burn = exposure(stops: -0.5)
+  label "burn the sky in"
+  mask graduated(centre: [0.5, 0.35], angle: 90, falloff: [0.15, 0.3])
+node film_grain = grain(amount: 0.22, size_px: 1.6, chroma: 0, seed: 400)
+node edges = vignette(amount: 0.2, softness: 0.8)
+
+graph red_filter -> print -> clarity -> sky_burn -> film_grain -> edges

@@ -1,0 +1,36 @@
+# A warm 1970s film print: the look of a release print struck from a colour negative of the era, warm and soft,
+# with milky blacks, dense rich colour, olive greens, red halation round bright edges and visible grain.
+#   lights        printer lights, as the lab timer would have set them: red up, blue down (1 point ~ 1/12 stop)
+#   print_curve   the print's tone: blacks lifted to a milky dark brown-grey, a soft shoulder that never reaches
+#                 pure white, a gentle S in between (rgb, so the toe tints like real print stock)
+#   dye_density   subtractive colour: saturated colours get deeper, not brighter (film dyes absorb, they do not glow)
+#   olive         greens turned toward olive and yellows toward amber, the era's colour palette
+#   split         cool cyan-green in the shadows, honey in the highlights
+#   faded_ends    less colour in the deep shadows and the brightest highlights, as on a print
+#   halation      red-orange halo round bright edges, light scattered back from the film base
+#   film_grain    grain strongest in the mids, a little colour in it
+#   gate          a soft vignette from the projector lens
+# Use it for period pieces, music videos and nostalgia; it wants a picture balanced to neutral first.
+cierra 0.1
+name "warm 70s print"
+about "Printer lights warm, milky print blacks, dense dye colour, olive greens, halation, grain."
+input aces2065_1
+output aces2(display: rec1886)
+
+node lights = printer_lights(red: 4, green: 1.5, blue: -3.5)
+  label "lab timing: warm"
+node print_curve = curve(points: [[0.0729, 0.13], [0.2, 0.21], [0.4136, 0.425], [0.6, 0.6], [0.85, 0.76], [1.1, 0.82]], channel: rgb)
+  label "milky blacks, soft shoulder below white"
+node dye_density = density(amount: 0.7)
+  label "subtractive dye colour"
+node olive = hue_vs_hue(points: [[206, -18, 40], [173, -8, 25]])
+  label "greens to olive, yellows to amber"
+node split = split_tone(shadow_hue: 280, shadow_amount: 0.012, highlight_hue: 160, highlight_amount: 0.03)
+  label "cyan-green shadows, honey highlights"
+node faded_ends = lum_vs_sat(points: [[0.12, 0.6], [0.3, 1], [0.6, 1], [0.8, 0.75]])
+  label "less colour in the deepest shadows and the top"
+node halation = halation(threshold: 0.5, radius_px: 10, strength: 0.45)
+node film_grain = grain(amount: 0.28, size_px: 1.8, chroma: 0.4, seed: 1974)
+node gate = vignette(amount: 0.18, softness: 0.9)
+
+graph lights -> print_curve -> dye_density -> olive -> split -> faded_ends -> halation -> film_grain -> gate

@@ -1,0 +1,53 @@
+{
+ "about": "Free-form held-out notes x frames: notes written the way a director or colourist talks, deliberately OUTSIDE the note-check vocabulary (tests/test_heldout_freeform.py checks that no probe recognises them). Each case's \"checks\" is the scoring key, in the checks' own phrases, and is never shown to a model. The checks are one reasonable reading of what each note means on the measurable axes (written 2026-10-27, before any model run), not the only one, so judge the sheets by eye as well. Do not tune prompts or hints on these cases. Frames: tests/data/SOURCES.md. 2026-10-28: frames moved from the Netflix clips to CC0 camera photos (tests/data/SOURCES.md); case ids renamed for the new pictures and the one note about forge sparks rewritten for the window, same checks. Scores before this date are on the earlier frames and are not comparable.",
+ "cases": [
+  {
+   "id": "autumn_crowd",
+   "frame": "crowd",
+   "notes": "Make it feel like a late-autumn evening: the light is going and it's getting cold.",
+   "checks": "cooler, darker"
+  },
+  {
+   "id": "snapshot_pens",
+   "frame": "pens",
+   "notes": "Give it the faded look of a 1970s family snapshot.",
+   "checks": "warmer, less contrast, less colour"
+  },
+  {
+   "id": "heat_window",
+   "frame": "window_1",
+   "notes": "The hottest afternoon of the year; that window should be burning.",
+   "checks": "warmer, more colour"
+  },
+  {
+   "id": "clinical_window",
+   "frame": "window_0",
+   "notes": "This should feel clinical and sterile, like a hospital corridor at 3am.",
+   "checks": "cooler, less colour"
+  },
+  {
+   "id": "bleach_window",
+   "frame": "window_2",
+   "notes": "Bleach bypass.",
+   "checks": "less colour, more contrast"
+  },
+  {
+   "id": "noir_crowd",
+   "frame": "crowd",
+   "notes": "Neo-noir: hard and steely, deep shadows, but don't lose detail in the shadows.",
+   "checks": "cooler, more contrast, darker, keep the blacks clean"
+  },
+  {
+   "id": "summer_pens",
+   "frame": "pens",
+   "notes": "Summer afternoon, sun on everything, make it glow.",
+   "checks": "warmer, brighter, more colour"
+  },
+  {
+   "id": "calm_window",
+   "frame": "window_2",
+   "notes": "Pull it back, it's shouting. Calmer and more natural.",
+   "checks": "less colour, less contrast"
+  }
+ ]
+}

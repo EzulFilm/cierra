@@ -1,0 +1,11 @@
+# A graduated filter: darken and cool the top of the frame (the sky), with a soft edge across the horizon.
+cierra 0.1
+name "sky grad"
+output aces2(display: srgb)
+
+node sky = exposure(stops: -0.6)
+  mask graduated(centre: [0.5, 0.45], angle: 90, falloff: [0.1, 0.25])
+node sky_cool = white_balance(temperature: -0.08)
+  mask graduated(centre: [0.5, 0.45], angle: 90, falloff: [0.1, 0.25])
+
+graph sky -> sky_cool

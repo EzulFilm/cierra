@@ -1,0 +1,13 @@
+# A night look: cooler and a little darker, teal in the shadows, skin kept warm, less colour overall.
+cierra 0.1
+name "night exterior"
+output aces2(display: srgb)
+
+node darker = exposure(stops: -0.4)
+node cool = white_balance(temperature: -0.12)
+  mask not skin()
+node teal_shadows = wheels(lift: [-0.01, 0.002, 0.008])
+  mask luma(range: -0.1..0.35) and not skin()
+node calm = saturation(amount: 0.85, protect_skin: 0.6)
+
+graph darker -> cool -> teal_shadows -> calm

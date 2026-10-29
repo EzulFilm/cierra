@@ -1,0 +1,32 @@
+# Soft pastel: light, airy and faded, the look of lifestyle ads, wedding films and indie romance. Colours are light
+# rather than strong, blacks are lifted to a soft grey, highlights glow, and the palette leans mint and peach.
+#   airy          a third of a stop brighter
+#   fade          the faded tone: black lifted, the top pulled under white, low contrast in between
+#   lighter_hues  saturated colours brighter rather than stronger (sat_vs_lum > 0) ...
+#   pastel_sat    ... the muted colours a little greyer (vibrance < 0 acts most on muted colours) ...
+#   calmer        ... and less colour overall, skin half protected; together they make pastels
+#   mint_peach    blues toward mint, reds toward peach (hue_vs_hue)
+#   tint          lavender in the shadows, peach in the highlights
+#   mist          a diffusion filter: highlights bleed softly into their surroundings
+# Use it for bright daylight material; on low-key night footage it only looks washed out.
+cierra 0.1
+name "soft pastel"
+about "Faded blacks, low contrast, light desaturated colour, mint and peach, a mist filter glow."
+input aces2065_1
+output aces2(display: rec1886)
+
+node airy = exposure(stops: 0.35)
+node fade = curve(points: [[0.0729, 0.15], [0.25, 0.27], [0.4136, 0.42], [0.65, 0.62], [1, 0.86]])
+  label "lifted blacks, low contrast, soft top"
+node lighter_hues = sat_vs_lum(points: [[0, 0], [0.05, 0.02], [0.15, 0.06]])
+  label "strong colours lighter"
+node pastel_sat = vibrance(amount: -0.35)
+  label "strong colours calmer"
+node calmer = saturation(amount: 0.85, protect_skin: 0.5)
+node mint_peach = hue_vs_hue(points: [[350, -35, 40], [123, 12, 25]])
+  label "blues to mint, reds to peach"
+node tint = split_tone(shadow_hue: 20, shadow_amount: 0.012, highlight_hue: 145, highlight_amount: 0.012)
+  label "lavender shadows, peach highlights"
+node mist = diffusion(radius_px: 30, strength: 0.35)
+
+graph airy -> fade -> lighter_hues -> pastel_sat -> calmer -> mint_peach -> tint -> mist

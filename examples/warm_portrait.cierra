@@ -1,0 +1,13 @@
+# Warm the picture slightly, give skin a little more colour, and cool the shadows everywhere except on skin.
+cierra 0.1
+name "warm portrait"
+input linear_rec709
+output aces2(display: srgb)
+
+node balance = white_balance(temperature: 0.15)
+node skin_glow = saturation(amount: 1.2)
+  mask skin(width: 30)
+node cool_shadows = wheels(lift: [-0.01, 0, 0.015])
+  mask not skin()
+
+graph balance -> skin_glow -> cool_shadows

@@ -1,0 +1,11 @@
+venv/
+.venv/
+cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+out/
+history/
+llm/
+.claude/
+*.egg-info/

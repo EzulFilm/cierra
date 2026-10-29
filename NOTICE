@@ -1,0 +1,12 @@
+Cierra
+Copyright 2026 Ezul
+
+Licensed under the Apache License, Version 2.0 (LICENSE).
+
+"Cierra" is a trademark of Ezul and is not licensed under the Apache License.
+
+This product uses OpenColorIO (BSD-3-Clause, Contributors to the OpenColorIO Project) for the ACES 2.0 output
+transform, and NumPy and SciPy (BSD-3-Clause).
+
+Test frames: CC0 camera RAW photos from raw.pixls.us (no attribution required) and a synthetic chart;
+tests/data/SOURCES.md lists the files and their SHA-256.

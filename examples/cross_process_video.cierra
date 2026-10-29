@@ -1,0 +1,34 @@
+# Cross-processed music video: the 90s look of slide film developed in negative chemicals (E-6 in C-41). The
+# channels come out with different contrast: red and green hard, blue soft with lifted blacks and a low top, so
+# shadows go blue, highlights go yellow-green, and colour runs hot. On top of the processed picture, a light-leak
+# layer in screen mode, the way a compositor would add one.
+#   red_x, green_x, blue_x  per-channel curves: the cross-process itself
+#   hot                     colour runs hot
+#   layer(... screen)       the bottom is the processed picture (keep); the top is a heavily blurred copy turned to
+#                           another hue (blur, then hue_rotate 120 deg), screened over at low opacity: a coloured
+#                           bloom that lifts the shadows like light leaking into the camera
+#   punch                   back the contrast the screen layer softened
+#   film_grain              grain, coarse and colourful, as on pushed slide film
+# Use it for music videos, fashion and title sequences. Set the layer opacity to 0 for a plain cross-process.
+cierra 0.1
+name "cross-process music video"
+about "Per-channel cross-process curves, a hue-rotated light leak in screen mode, coarse colour grain."
+input aces2065_1
+output aces2(display: rec1886)
+
+node red_x = curve(points: [[0.0729, 0.06], [0.3, 0.26], [0.4136, 0.43], [0.6, 0.66], [1, 1]], channel: red)
+  label "red: hard"
+node green_x = curve(points: [[0.0729, 0.07], [0.3, 0.28], [0.4136, 0.435], [0.6, 0.655], [1, 1]], channel: green)
+  label "green: hard"
+node blue_x = curve(points: [[0.0729, 0.17], [0.3, 0.34], [0.4136, 0.4], [0.6, 0.5], [1, 0.76]], channel: blue)
+  label "blue: soft, lifted blacks, low top (blue shadows, yellow highlights)"
+node hot = saturation(amount: 1.1)
+node keep = contrast(amount: 1.02)
+  label "the layer's bottom: the processed picture"
+node leak_blur = blur(radius_px: 60)
+node leak_hue = hue_rotate(degrees: 120)
+  label "light leak in another colour"
+node punch = contrast(amount: 1.1, pivot: 0.38)
+node film_grain = grain(amount: 0.3, size_px: 2.2, chroma: 0.7, seed: 1996)
+
+graph red_x -> green_x -> blue_x -> hot -> layer(keep, leak_blur -> leak_hue, mode: screen, opacity: 0.2) -> punch -> film_grain

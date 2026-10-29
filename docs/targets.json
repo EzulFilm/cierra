@@ -1,0 +1,134 @@
+{
+ "beauty_modern": {
+  "clf": {
+   "worst_frame": {
+    "max": 0.4811,
+    "mean": 0.0527,
+    "p95": 0.1995
+   }
+  },
+  "cube": {
+   "worst_frame": {
+    "max": 0.4811,
+    "mean": 0.0527,
+    "p95": 0.1995
+   }
+  },
+  "cuda": {
+   "parts": [
+    "whole graph"
+   ],
+   "worst_frame": {
+    "max": 0.0005,
+    "mean": 0.0,
+    "p95": 0.0001
+   }
+  },
+  "dctl": {
+   "parts": [
+    "whole graph"
+   ],
+   "worst_frame": {
+    "max": 0.0005,
+    "mean": 0.0,
+    "p95": 0.0001
+   }
+  },
+  "lut_files": {
+   "beauty_modern_ACEScct.clf": "LMT as CLF v3: ACEScct in -> ACEScct out",
+   "beauty_modern_ACEScct.cube": "LMT: ACEScct in -> ACEScct out",
+   "beauty_modern_ACEScct_to_aces2_srgb.cube": "graph + output transform: ACEScct in -> display (aces2, srgb) out"
+  }
+ },
+ "cinematic_modern": {
+  "clf": {
+   "worst_frame": {
+    "max": 0.2497,
+    "mean": 0.0416,
+    "p95": 0.1554
+   }
+  },
+  "cube": {
+   "worst_frame": {
+    "max": 0.2497,
+    "mean": 0.0416,
+    "p95": 0.1554
+   }
+  },
+  "cuda": {
+   "parts": [
+    "whole graph"
+   ],
+   "worst_frame": {
+    "max": 0.0004,
+    "mean": 0.0,
+    "p95": 0.0001
+   }
+  },
+  "dctl": {
+   "parts": [
+    "whole graph"
+   ],
+   "worst_frame": {
+    "max": 0.0004,
+    "mean": 0.0,
+    "p95": 0.0001
+   }
+  },
+  "lut_files": {
+   "cinematic_modern_ACEScct.clf": "LMT as CLF v3: ACEScct in -> ACEScct out",
+   "cinematic_modern_ACEScct.cube": "LMT: ACEScct in -> ACEScct out",
+   "cinematic_modern_ACEScct_to_aces2_srgb.cube": "graph + output transform: ACEScct in -> display (aces2, srgb) out"
+  }
+ },
+ "kitchen_sink": {
+  "cuda": {
+   "parts": [
+    "whole graph"
+   ],
+   "worst_frame": {
+    "max": 0.0005,
+    "mean": 0.0001,
+    "p95": 0.0001
+   }
+  },
+  "dctl": {
+   "parts": [
+    "whole graph"
+   ],
+   "worst_frame": {
+    "max": 0.0005,
+    "mean": 0.0001,
+    "p95": 0.0001
+   }
+  },
+  "lut": "refused: not LUT-expressible: node win: mask window() is not pointwise; node vg: vignette() is position-dependent; node gr: grain() is position-dependent; node key: keyframed (a LUT holds one frame)"
+ },
+ "teal_night": {
+  "cuda": {
+   "parts": [
+    "nodes tone, cool, keep_practicals_warm, teal_shadows, warm_skin_teal_up, skin_protect",
+    "not in CUDA: node glow: glow() is spatial",
+    "nodes skin_hold"
+   ],
+   "worst_frame": {
+    "max": 0.0013,
+    "mean": 0.0,
+    "p95": 0.0001
+   }
+  },
+  "dctl": {
+   "parts": [
+    "nodes tone, cool, keep_practicals_warm, teal_shadows, warm_skin_teal_up, skin_protect",
+    "not in DCTL: node glow: glow() is spatial",
+    "nodes skin_hold"
+   ],
+   "worst_frame": {
+    "max": 0.0013,
+    "mean": 0.0,
+    "p95": 0.0001
+   }
+  },
+  "lut": "refused: not LUT-expressible: node glow: glow() is spatial"
+ }
+}

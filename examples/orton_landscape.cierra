@@ -1,0 +1,36 @@
+# The Orton effect, a landscape photographers' technique from slide-film days: sandwich a sharp exposure with an
+# overexposed, out-of-focus one. The result keeps its detail but glows, with luminous, painterly colour. In Cierra
+# the sandwich is a parallel(): both branches see the same picture and the result is their average.
+#   crisp          branch 1, the sharp slide: more local contrast and texture
+#   orton_bright   branch 2, the overexposed slide, a stop and a half over ...
+#   orton_blur     ... and out of focus
+#   parallel(...)  the sandwich: the average of the two (a 50 / 50 blend in ACEScct)
+#   settle         the bright branch lifts the whole picture: bring the mids back down, keep the glow
+#   pop            firmer contrast: the sandwich is soft
+#   lush           greens richer and a little toward yellow (spring foliage), skies a touch richer
+#   golden         warm late-day light in the highlights
+# Use it for landscapes, gardens, travel and nature films; on faces it reads as soft focus.
+cierra 0.1
+name "Orton landscape"
+about "A sharp and an overexposed, blurred copy averaged with parallel(): detail that glows; lush greens, warm light."
+input aces2065_1
+output aces2(display: rec1886)
+
+node crisp = local_contrast(amount: 0.35, radius_px: 60)
+  label "the sharp slide"
+node orton_bright = exposure(stops: 1.5)
+  label "the overexposed slide"
+node orton_blur = blur(radius_px: 24)
+  label "out of focus"
+node settle = exposure(stops: -0.55)
+  label "mids back where they were"
+node pop = contrast(amount: 1.18, pivot: 0.38)
+  label "the sandwich is soft: firm it up"
+node lush = hue_vs_sat(points: [[206, 1.4, 45], [173, 1.2, 30], [350, 1.1, 40]])
+  label "richer greens, yellows and blue sky"
+node spring = hue_vs_hue(points: [[206, -10, 40]])
+  label "greens a little toward yellow"
+node golden = split_tone(highlight_hue: 155, highlight_amount: 0.02)
+  label "warm light"
+
+graph parallel(crisp, orton_bright -> orton_blur) -> settle -> pop -> lush -> spring -> golden

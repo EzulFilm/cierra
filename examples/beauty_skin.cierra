@@ -1,0 +1,42 @@
+# Beauty and skin refinement, the finishing pass of a commercial or a close-up: even, smooth, glowing skin without
+# the plastic look, and crisp eyes, hair and clothes. Everything that touches skin is keyed, and the key follows the
+# face's edges (feather_px, an edge-aware matte) so nothing bleeds onto hair or background.
+#   skin_even     skin hues drawn together onto one line: redder patches toward the skin hue, yellower ones back,
+#                 the colourist's "skin line" (hue_vs_hue, on the skin key)
+#   skin_calm     blotchy saturation evened out: the most saturated skin calmed (sat_vs_sat), skin only
+#   skin_smooth   edge-aware smoothing of skin texture (guided_detail < 0): pores and blemishes soften, the outline
+#                 of the face stays sharp; mix 0.7 keeps some real texture
+#   rest_crisp    the opposite on everything that is NOT skin: eyes, lashes, hair, fabric a little crisper
+#   key_light     a soft oval of light on the face (window): a third of a stop, the colourist's "relight"
+#   glow          a soft, warm bloom on the highlights, the beauty-lighting sheen
+#   palette       the rest of the frame a touch calmer so skin is the richest colour in it
+# Use it on close-ups and beauty shots; move the window to the face and widen the skin key for darker or paler
+# skin.
+cierra 0.1
+name "beauty skin"
+about "Skin evened and smoothed on an edge-following skin key, the rest crisper, a soft relight and a warm glow."
+input aces2065_1
+output aces2(display: rec1886)
+
+node skin_even = hue_vs_hue(points: [[125, 10, 18], [158, -8, 18]])
+  label "skin hues onto one line"
+  mask skin(width: 40, feather_px: 6)
+node skin_calm = sat_vs_sat(points: [[0, 0], [0.04, 0.04], [0.1, 0.085]])
+  label "blotchy saturation evened"
+  mask skin(width: 40, feather_px: 6)
+node skin_smooth = guided_detail(amount: -0.8, radius_px: 10, edge: 0.03)
+  label "smooth skin, sharp outline"
+  mask skin(width: 40, feather_px: 6)
+  mix 0.7
+node rest_crisp = guided_detail(amount: 0.4, radius_px: 4)
+  label "eyes, hair, fabric crisper"
+  mask not skin(width: 40, feather_px: 6)
+node key_light = exposure(stops: 0.3)
+  label "relight the face"
+  mask window(centre: [0.5, 0.42], radius: [0.22, 0.3], soft: 0.6)
+node glow = glow(threshold: 0.55, radius_px: 35, strength: 0.15, warm: 0.2)
+node palette = saturation(amount: 0.92)
+  label "the rest calmer than skin"
+  mask not skin(width: 40)
+
+graph skin_even -> skin_calm -> skin_smooth -> rest_crisp -> key_light -> glow -> palette

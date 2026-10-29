@@ -1,0 +1,117 @@
+{
+ "clipping": {
+  "any_channel_clipped_pct": 0.0,
+  "any_channel_crushed_pct": 0.0,
+  "clipped_white_pct": 0.0,
+  "crushed_black_pct": 0.0
+ },
+ "histogram": {
+  "bin_width": 0.1,
+  "luma_bins_pct": [
+   13.89,
+   14.94,
+   14.23,
+   12.19,
+   8.77,
+   4.69,
+   3.55,
+   1.57,
+   26.16,
+   0.0
+  ]
+ },
+ "neutral_cast": {
+  "angle_deg": 322.6,
+  "magnitude": 0.0034,
+  "reads_as": "neutral",
+  "share_pct": 25.2
+ },
+ "skin": {
+  "chroma_p50": 0.0655,
+  "hue_offset_deg_p50": -2.33,
+  "hue_offset_deg_spread": 14.2,
+  "luma_p50": 0.336,
+  "note": "offset > 0 = toward yellow, < 0 = toward red/magenta",
+  "share_pct": 17.67
+ },
+ "tone": {
+  "black_p0.5": 0.012,
+  "mean": 0.432,
+  "mid_grey_reference": 0.461,
+  "p5": 0.04,
+  "p50": 0.356,
+  "p95": 0.884,
+  "white_p99.5": 0.892
+ },
+ "units": "display sRGB code values 0..1; vectorscope degrees (skin line 122)",
+ "vectorscope": {
+  "chroma_p50": 0.0196,
+  "chroma_p90": 0.0811,
+  "chroma_p99": 0.2092,
+  "saturation_by_hue_band": {
+   "blue": {
+    "chroma_p50": 0.0179,
+    "share_pct": 20.73
+   },
+   "cyan": {
+    "chroma_p50": 0.0176,
+    "share_pct": 1.31
+   },
+   "green": {
+    "chroma_p50": 0.0201,
+    "share_pct": 4.05
+   },
+   "magenta": {
+    "chroma_p50": 0.0178,
+    "share_pct": 3.53
+   },
+   "orange_skin": {
+    "chroma_p50": 0.0523,
+    "share_pct": 23.63
+   },
+   "red": {
+    "chroma_p50": 0.0509,
+    "share_pct": 23.6
+   },
+   "yellow": {
+    "chroma_p50": 0.0456,
+    "share_pct": 18.35
+   }
+  }
+ },
+ "waveform": {
+  "columns": 6,
+  "p2_p50_p98": [
+   [
+    0.032,
+    0.255,
+    0.842
+   ],
+   [
+    0.04,
+    0.348,
+    0.857
+   ],
+   [
+    0.018,
+    0.352,
+    0.867
+   ],
+   [
+    0.019,
+    0.385,
+    0.878
+   ],
+   [
+    0.015,
+    0.442,
+    0.888
+   ],
+   [
+    0.022,
+    0.353,
+    0.892
+   ]
+  ]
+ }
+}

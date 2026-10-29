@@ -1,0 +1,45 @@
+# A product shot finished the way a commercial colourist would: the client's product (here the red pen, second
+# from the left in the fan of coloured pens) gets the light, the colour and the crispness; everything else steps
+# back. Windows do the work: a polygon traced round the product, a soft box round the whole group, and their
+# combinations with and / not.
+#   clean         a slightly brighter base for the whole frame
+#   backdrop      the felt outside the box: a stop darker and calmer, so the group sits in a pool of light
+#   supporting    the other pens (inside the box AND NOT on the polygon): less colour, so none competes with the hero
+#   hero_light    the product polygon gets a third of a stop more light; AND NOT a key on the green felt, so the
+#                 felt caught inside the polygon's soft edge does not light up round the pen
+#   hero_colour   richer product colour, same matte
+#   hero_crisp    crisper edges; clip_black on the matte drops the soft outer half of the polygon edge, so the
+#                 sharpening stops at the pen
+#   frame         a gentle vignette to finish the pool of light
+# Use it for packshots, e-commerce and commercials: retrace the polygon for your product (points are frame
+# coordinates, 0..1 from the top-left). Polygon points cannot be keyframed in this version: for a moving product
+# use a box() or window(), whose centre and size can.
+cierra 0.1
+name "product hero"
+about "Polygon window round the product: brighter, richer, crisper; the rest of the group calmer, the backdrop darker."
+input aces2065_1
+output aces2(display: rec1886)
+
+node clean = exposure(stops: 0.2)
+  label "a brighter neutral base"
+node backdrop = exposure(stops: -1)
+  label "backdrop darker"
+  mask not box(centre: [0.5, 0.47], size: [0.5, 0.2], roundness: 0.6, soft: 0.25)
+node backdrop_calm = saturation(amount: 0.6)
+  label "backdrop calmer"
+  mask not box(centre: [0.5, 0.47], size: [0.5, 0.2], roundness: 0.6, soft: 0.25)
+node supporting = saturation(amount: 0.7)
+  label "the other pens step back"
+  mask box(centre: [0.5, 0.47], size: [0.5, 0.2], roundness: 0.6, soft: 0.25) and not polygon(points: [[0.06, 0.31], [0.12, 0.31], [0.47, 0.545], [0.47, 0.6], [0.43, 0.605], [0.06, 0.36]], soft: 0.01)
+node hero_light = exposure(stops: 0.3)
+  label "the product gets the light (not the felt round it)"
+  mask polygon(points: [[0.06, 0.31], [0.12, 0.31], [0.47, 0.545], [0.47, 0.6], [0.43, 0.605], [0.06, 0.36]], soft: 0.01) and not qualifier(hue: 185..235, sat: 0.01..1, soft: 0.1)
+node hero_colour = saturation(amount: 1.3)
+  label "richer product colour"
+  mask polygon(points: [[0.06, 0.31], [0.12, 0.31], [0.47, 0.545], [0.47, 0.6], [0.43, 0.605], [0.06, 0.36]], soft: 0.01) and not qualifier(hue: 185..235, sat: 0.01..1, soft: 0.1)
+node hero_crisp = sharpen(amount: 0.6, radius_px: 1.2)
+  label "crisper product edges"
+  mask polygon(points: [[0.06, 0.31], [0.12, 0.31], [0.47, 0.545], [0.47, 0.6], [0.43, 0.605], [0.06, 0.36]], soft: 0.01, clip_black: 0.5)
+node frame = vignette(amount: 0.12, softness: 0.9)
+
+graph clean -> backdrop -> backdrop_calm -> supporting -> hero_light -> hero_colour -> hero_crisp -> frame

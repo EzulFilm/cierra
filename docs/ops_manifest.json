@@ -1,0 +1,2804 @@
+{
+ "graph": {
+  "layer": {
+   "mode": {
+    "choices": [
+     "normal",
+     "add",
+     "multiply",
+     "lighten",
+     "darken",
+     "screen",
+     "overlay",
+     "subtract",
+     "difference"
+    ],
+    "default": "normal",
+    "doc": null,
+    "keyframable": false,
+    "kind": "enum",
+    "required": false,
+    "unit": null
+   },
+   "modes": [
+    "normal",
+    "add",
+    "multiply",
+    "lighten",
+    "darken",
+    "screen",
+    "overlay",
+    "subtract",
+    "difference"
+   ],
+   "opacity": {
+    "default": 1.0,
+    "doc": "blend of the blended result over the bottom; keyframable",
+    "keyframable": true,
+    "kind": "num",
+    "range": [
+     0.0,
+     1.0
+    ],
+    "required": false,
+    "unit": "x"
+   }
+  },
+  "omitted": "no graph line = identity",
+  "parallel": "parallel(g1, ..., gn): unweighted mean of the branch outputs in ACEScct code values, every branch on the same input (n <= 8)",
+  "serial": "a -> b"
+ },
+ "inputs": {
+  "aces2065_1": "ACES2065-1: scene-linear AP0",
+  "acescct": "ACEScct code values (AP1)",
+  "acescg": "ACEScg: scene-linear AP1",
+  "apple_log": "Apple Log (Rec.2020 primaries) (through the OpenColorIO studio config)",
+  "arri_logc3": "ARRI LogC3, EI 800, ARRI Wide Gamut 3 (through the OpenColorIO studio config)",
+  "arri_logc4": "ARRI LogC4, ARRI Wide Gamut 4 (through the OpenColorIO studio config)",
+  "bmd_film_gen5": "Blackmagic Film Gen 5, Wide Gamut Gen 5 (through the OpenColorIO studio config)",
+  "canon_log2": "Canon Log 2, Cinema Gamut (D55) (through the OpenColorIO studio config)",
+  "canon_log3": "Canon Log 3, Cinema Gamut (D55) (through the OpenColorIO studio config)",
+  "dji_dlog": "DJI D-Log, D-Gamut (through the OpenColorIO studio config)",
+  "linear_p3d65": "scene-linear P3-D65 (through the OpenColorIO studio config)",
+  "linear_photo": "display-referred photo as display-linear Rec.709 floats, may exceed 1 where a highlight-recovery stage restored them (photo_graph runs first)",
+  "linear_rec2020": "scene-linear Rec.2020 (through the OpenColorIO studio config)",
+  "linear_rec709": "scene-linear Rec.709 / sRGB primaries, D65",
+  "panasonic_vlog": "Panasonic V-Log, V-Gamut (through the OpenColorIO studio config)",
+  "red_log3g10": "RED Log3G10, REDWideGamutRGB (through the OpenColorIO studio config)",
+  "sony_slog3_sgamut3": "Sony S-Log3, S-Gamut3 (through the OpenColorIO studio config)",
+  "sony_slog3_sgamut3cine": "Sony S-Log3, S-Gamut3.Cine (through the OpenColorIO studio config)",
+  "srgb_photo": "display-referred sRGB photo, code values clipped to 0..1 and decoded (photo_graph runs first)"
+ },
+ "keyframes": {
+  "frames": [
+   0,
+   1000000
+  ],
+  "interpolations": [
+   "step",
+   "linear",
+   "smooth"
+  ],
+  "max_keys": 64
+ },
+ "language": "cierra",
+ "limits": {
+  "graph_depth": 8,
+  "graph_refs": 128,
+  "ident": 40,
+  "key_statements": 64,
+  "keys": 64,
+  "mask_calls": 16,
+  "mask_calls_expanded": 64,
+  "mask_depth": 16,
+  "mask_depth_expanded": 64,
+  "max_frame": 1000000,
+  "nodes": 64,
+  "number_digits": 40,
+  "parallel_branches": 8,
+  "point_gap": 0.0001,
+  "source_bytes": 65536,
+  "spatial_passes": 16,
+  "string": 400,
+  "value_depth": 4
+ },
+ "mask_combinators": [
+  "and (product)",
+  "or (max)",
+  "not (1 - m)"
+ ],
+ "masks": {
+  "box": {
+   "aux_planes": [],
+   "category": "mask",
+   "doc": "Soft rounded rectangle in normalised frame coordinates, optionally rotated: a superellipse with exponent 2 + 18\u00b7(1 \u2212 roundness) (roundness 1 = the ellipse of window(), 0 = nearly square corners).",
+   "identity_with_defaults": false,
+   "kind": "position",
+   "params": {
+    "angle": {
+     "default": 0.0,
+     "doc": "rotation, counter-clockwise on screen",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -180.0,
+      180.0
+     ],
+     "required": false,
+     "unit": "deg"
+    },
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "centre": {
+     "default": [
+      0.5,
+      0.5
+     ],
+     "doc": "[x, y]",
+     "keyframable": true,
+     "kind": "pair",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "frame"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "roundness": {
+     "default": 0.2,
+     "doc": "corner rounding",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "size": {
+     "default": [
+      0.3,
+      0.2
+     ],
+     "doc": "[half width, half height]",
+     "keyframable": true,
+     "kind": "pair",
+     "range": [
+      0.01,
+      2.0
+     ],
+     "required": false,
+     "unit": "frame"
+    },
+    "soft": {
+     "default": 0.1,
+     "doc": "edge softness",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "depth": {
+   "aux_planes": [
+    "depth"
+   ],
+   "category": "mask",
+   "doc": "Scene depth key in metres (log-distance band); needs the host's depth plane.",
+   "identity_with_defaults": false,
+   "kind": "aux",
+   "params": {
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "range": {
+     "doc": "[near, far] metres",
+     "keyframable": false,
+     "kind": "range",
+     "range": [
+      0.01,
+      10000.0
+     ],
+     "required": true,
+     "unit": "m"
+    },
+    "soft": {
+     "default": 0.1,
+     "doc": "softness",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "log m"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "graduated": {
+   "aux_planes": [],
+   "category": "mask",
+   "doc": "Graduated filter: 0 behind a straight line through `centre`, 1 ahead of it, in the direction `angle` (90 = towards the top: a sky grad); `falloff` = [behind, ahead] widths of the soft edge.",
+   "identity_with_defaults": false,
+   "kind": "position",
+   "params": {
+    "angle": {
+     "default": 90.0,
+     "doc": "direction the matte rises towards, counter-clockwise from right",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -180.0,
+      180.0
+     ],
+     "required": false,
+     "unit": "deg"
+    },
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "centre": {
+     "default": [
+      0.5,
+      0.5
+     ],
+     "doc": "[x, y] on the line",
+     "keyframable": true,
+     "kind": "pair",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "frame"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "falloff": {
+     "default": [
+      0.25,
+      0.25
+     ],
+     "doc": "[behind, ahead] soft widths (frame widths)",
+     "keyframable": true,
+     "kind": "pair",
+     "range": [
+      0.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "frame"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "luma": {
+   "aux_planes": [],
+   "category": "mask",
+   "doc": "Luma range key (ACEScct).",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "range": {
+     "doc": "[lo, hi]",
+     "keyframable": false,
+     "kind": "range",
+     "range": [
+      -0.1,
+      1.5
+     ],
+     "required": true,
+     "unit": "cv"
+    },
+    "soft": {
+     "default": 0.05,
+     "doc": "edge softness",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      0.5
+     ],
+     "required": false,
+     "unit": "cv"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "polygon": {
+   "aux_planes": [],
+   "category": "mask",
+   "doc": "Soft polygon through 3..16 points in normalised frame coordinates (origin top-left); the soft edge is measured in frame widths, centred on the outline.",
+   "identity_with_defaults": false,
+   "kind": "position",
+   "params": {
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "points": {
+     "columns": [
+      {
+       "label": "x",
+       "range": [
+        -1.0,
+        2.0
+       ]
+      },
+      {
+       "label": "y",
+       "range": [
+        -1.0,
+        2.0
+       ]
+      }
+     ],
+     "doc": "[[x, y], ...] in order around the shape",
+     "keyframable": false,
+     "kind": "points",
+     "length": [
+      3,
+      16
+     ],
+     "optional_columns": [],
+     "required": true,
+     "sorted": false,
+     "unit": null
+    },
+    "soft": {
+     "default": 0.01,
+     "doc": "edge softness",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      0.5
+     ],
+     "required": false,
+     "unit": "frame widths"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "qualifier": {
+   "aux_planes": [],
+   "category": "mask",
+   "doc": "HSL key on hue (deg), opponent chroma and ACEScct luma; each with smooth edges `soft` wide.",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "hue": {
+     "default": null,
+     "doc": "hue range, may wrap (330..30)",
+     "keyframable": false,
+     "kind": "range",
+     "range": [
+      0.0,
+      360.0
+     ],
+     "required": false,
+     "unit": "deg"
+    },
+    "lum": {
+     "default": null,
+     "doc": "luma range",
+     "keyframable": false,
+     "kind": "range",
+     "range": [
+      -0.1,
+      1.5
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "sat": {
+     "default": null,
+     "doc": "chroma range",
+     "keyframable": false,
+     "kind": "range",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "chroma"
+    },
+    "soft": {
+     "default": 0.05,
+     "doc": "edge softness",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      0.5
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "rgb_key": {
+   "aux_planes": [],
+   "category": "mask",
+   "doc": "RGB key: smooth bands on the red, green and blue ACEScct code values (each optional; all given must hold).",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "blue": {
+     "default": null,
+     "doc": "blue range",
+     "keyframable": false,
+     "kind": "range",
+     "range": [
+      -0.1,
+      1.5
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "green": {
+     "default": null,
+     "doc": "green range",
+     "keyframable": false,
+     "kind": "range",
+     "range": [
+      -0.1,
+      1.5
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "red": {
+     "default": null,
+     "doc": "red range",
+     "keyframable": false,
+     "kind": "range",
+     "range": [
+      -0.1,
+      1.5
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "soft": {
+     "default": 0.05,
+     "doc": "edge softness",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      0.5
+     ],
+     "required": false,
+     "unit": "cv"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "segment": {
+   "aux_planes": [
+    "segments"
+   ],
+   "category": "mask",
+   "doc": "Segment-ID key: 1 where the host's integer segment plane is one of `ids`.",
+   "identity_with_defaults": false,
+   "kind": "aux",
+   "params": {
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "ids": {
+     "doc": "segment ids",
+     "keyframable": false,
+     "kind": "ints",
+     "length": [
+      1,
+      64
+     ],
+     "range": [
+      0,
+      65535
+     ],
+     "required": true,
+     "unit": null
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "skin": {
+   "aux_planes": [],
+   "category": "mask",
+   "doc": "Skin key: hue 141 deg +- width/2, chroma 0.006..0.09, luma 0.15..0.7 (a qualifier preset).",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "soft": {
+     "default": 0.05,
+     "doc": "edge softness",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      0.5
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "width": {
+     "default": 28.0,
+     "doc": "hue width",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      10.0,
+      90.0
+     ],
+     "required": false,
+     "unit": "deg"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "window": {
+   "aux_planes": [],
+   "category": "mask",
+   "doc": "Soft ellipse in normalised frame coordinates (0..1, origin top-left), optionally rotated.",
+   "identity_with_defaults": false,
+   "kind": "position",
+   "params": {
+    "angle": {
+     "default": 0.0,
+     "doc": "rotation, counter-clockwise on screen",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -180.0,
+      180.0
+     ],
+     "required": false,
+     "unit": "deg"
+    },
+    "blur_px": {
+     "default": 0.0,
+     "doc": "blur the matte (spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "centre": {
+     "default": [
+      0.5,
+      0.5
+     ],
+     "doc": "[x, y]",
+     "keyframable": true,
+     "kind": "pair",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "frame"
+    },
+    "clip_black": {
+     "default": 0.0,
+     "doc": "matte values at or below this become 0",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "clip_white": {
+     "default": 1.0,
+     "doc": "matte values at or above this become 1",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "feather_px": {
+     "default": 0.0,
+     "doc": "edge-aware feather: the matte follows the picture's edges (guided filter on luma; spatial: reference engine only)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "radius": {
+     "default": [
+      0.4,
+      0.4
+     ],
+     "doc": "[rx, ry]",
+     "keyframable": true,
+     "kind": "pair",
+     "range": [
+      0.01,
+      2.0
+     ],
+     "required": false,
+     "unit": "frame"
+    },
+    "soft": {
+     "default": 0.3,
+     "doc": "edge softness",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": false,
+    "reference": true
+   }
+  }
+ },
+ "node_modifiers": {
+  "label": "string <= 400 characters",
+  "mask": "a mask expression, at most one per node",
+  "mix": {
+   "default": 1.0,
+   "doc": "blend of the node's result with its input; keyframable",
+   "keyframable": true,
+   "kind": "num",
+   "range": [
+    0.0,
+    1.0
+   ],
+   "required": false,
+   "unit": "x"
+  },
+  "off": "bypass the node (passes its input through)"
+ },
+ "notes": "targets.lut is per op; a mask with blur_px > 0, keyframes, or any non-pointwise node makes the whole program not LUT-expressible. targets.dctl excludes blurred mattes and depth / segment masks.",
+ "ops": {
+  "blur": {
+   "aux_planes": [],
+   "category": "spatial",
+   "doc": "Gaussian blur of the working values.",
+   "identity_with_defaults": false,
+   "kind": "spatial",
+   "params": {
+    "radius_px": {
+     "default": 2.0,
+     "doc": "Gaussian sigma (< 0.3 = no blur)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      100.0
+     ],
+     "required": false,
+     "unit": "px"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "cdl": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "ASC CDL on ACEScct code values, unclamped (CLF 'FwdNoClamp'): v = in * slope + offset; v = v ** power where v >= 0; then saturation around Rec.709 luma.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "offset": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "doc": "per-channel offset",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      -0.5,
+      0.5
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "power": {
+     "default": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "doc": "per-channel power",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      0.2,
+      4.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "sat": {
+     "default": 1.0,
+     "doc": "saturation, 1 = unchanged",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      4.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "slope": {
+     "default": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "doc": "per-channel slope",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      0.0,
+      4.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "contrast": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Log contrast around a pivot: out = (in - pivot) * amount + pivot.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "amount": {
+     "default": 1.0,
+     "doc": "1 = unchanged",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.3,
+      3.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "pivot": {
+     "default": 0.4135884,
+     "doc": "level that stays put (0.4136 = 18 % grey)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "cv"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "curve": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Monotone cubic curve (Fritsch-Carlson, no overshoot) through points; straight lines with the end slopes beyond. channel luma keeps colour (adds the luma change to all channels); rgb applies to each channel. space log: points are ACEScct code values; display: on-screen sRGB code values.",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "channel": {
+     "choices": [
+      "luma",
+      "rgb",
+      "red",
+      "green",
+      "blue"
+     ],
+     "default": "luma",
+     "doc": null,
+     "keyframable": false,
+     "kind": "enum",
+     "required": false,
+     "unit": null
+    },
+    "points": {
+     "columns": [
+      {
+       "label": "x in",
+       "range": [
+        -0.2,
+        1.5
+       ]
+      },
+      {
+       "label": "y out",
+       "range": [
+        -0.2,
+        1.5
+       ]
+      }
+     ],
+     "doc": "[[x, y], ...], x strictly increasing",
+     "keyframable": false,
+     "kind": "points",
+     "length": [
+      2,
+      16
+     ],
+     "optional_columns": [],
+     "required": true,
+     "sorted": true,
+     "unit": null
+    },
+    "space": {
+     "choices": [
+      "log",
+      "display"
+     ],
+     "default": "log",
+     "doc": null,
+     "keyframable": false,
+     "kind": "enum",
+     "required": false,
+     "unit": null
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "density": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Subtractive (film-like) colour density: darkens each pixel by amount times its opponent chroma, so saturated colours get deeper rather than brighter. 0.5 subtle, 1.5 strong.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "amount": {
+     "default": 0.0,
+     "doc": "luma change = -amount \u00b7 chroma (cv)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -1.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "diffusion": {
+   "aux_planes": [],
+   "category": "spatial",
+   "doc": "Diffusion / mist filter: light from bright areas spreads into darker neighbours (adds max(blur - in, 0) in linear light); lowers local contrast round highlights.",
+   "identity_with_defaults": false,
+   "kind": "spatial",
+   "params": {
+    "radius_px": {
+     "default": 20.0,
+     "doc": "Gaussian sigma",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "strength": {
+     "default": 0.25,
+     "doc": "amount",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "exposure": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Exposure: a linear-light gain (decode ACEScct, multiply by 2^stops, encode); above the toe it is the same as adding stops / 17.52, and it never lifts black below the toe.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "stops": {
+     "default": 0.0,
+     "doc": "+1 = one stop brighter",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -6.0,
+      6.0
+     ],
+     "required": false,
+     "unit": "stops"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "gamut_compress": {
+   "aux_planes": [],
+   "category": "transform",
+   "doc": "Reference gamut compression (the open ACES method) on linear AP1: pulls colours outside the gamut back in along their distance from the achromatic axis, leaving colours inside threshold untouched.",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "limit": {
+     "default": [
+      1.147,
+      1.264,
+      1.312
+     ],
+     "doc": "[cyan, magenta, yellow] distance mapped to the gamut boundary",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      1.01,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "power": {
+     "default": 1.2,
+     "doc": "curve exponent: higher = sharper knee",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      3.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "threshold": {
+     "default": [
+      0.815,
+      0.803,
+      0.88
+     ],
+     "doc": "[cyan, magenta, yellow] distance where compression starts",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      0.5,
+      0.99
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "glow": {
+   "aux_planes": [],
+   "category": "spatial",
+   "doc": "Bloom: light above `threshold` (cv) spreads by a Gaussian of `radius_px` and is added back in linear light, `warm` tints the halo.",
+   "identity_with_defaults": false,
+   "kind": "spatial",
+   "params": {
+    "radius_px": {
+     "default": 40.0,
+     "doc": "Gaussian sigma",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      400.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "strength": {
+     "default": 0.3,
+     "doc": "amount",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "threshold": {
+     "default": 0.6,
+     "doc": "level where glow starts (0.6 ~ 3.4 stops over grey)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.2
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "warm": {
+     "default": 0.0,
+     "doc": "> 0 warmer halo",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -0.5,
+      0.5
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "grain": {
+   "aux_planes": [],
+   "category": "position",
+   "doc": "Deterministic film-like grain: value noise on a `size_px` lattice from an integer hash of (cell, frame, seed, channel), strongest in the mid-tones. Same seed + frame = the same random cells on every target (grain values within float tolerance).",
+   "identity_with_defaults": false,
+   "kind": "position",
+   "params": {
+    "amount": {
+     "default": 0.2,
+     "doc": "0.1 fine, 0.3 heavy",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "chroma": {
+     "default": 0.3,
+     "doc": "0 = monochrome grain, 1 = independent per channel",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "seed": {
+     "doc": "required: the random seed",
+     "keyframable": false,
+     "kind": "int",
+     "range": [
+      0,
+      2147483647
+     ],
+     "required": true,
+     "unit": null
+    },
+    "size_px": {
+     "default": 1.5,
+     "doc": "grain cell size",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      8.0
+     ],
+     "required": false,
+     "unit": "px"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "guided_detail": {
+   "aux_planes": [],
+   "category": "spatial",
+   "doc": "Edge-aware detail on luma (guided filter): edges stronger than `edge` keep their shape, so no halos; amount > 0 crisper texture, < 0 smoother.",
+   "identity_with_defaults": false,
+   "kind": "spatial",
+   "params": {
+    "amount": {
+     "default": 0.5,
+     "doc": "> 0 more detail, < 0 smoother",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -1.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "edge": {
+     "default": 0.02,
+     "doc": "luma step treated as an edge (sqrt of the filter's eps)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.001,
+      0.2
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "protect_blacks": {
+     "default": true,
+     "doc": null,
+     "keyframable": false,
+     "kind": "bool",
+     "required": false,
+     "unit": null
+    },
+    "radius_px": {
+     "default": 8.0,
+     "doc": "box radius of the guided filter",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "halation": {
+   "aux_planes": [],
+   "category": "spatial",
+   "doc": "Film-style halation: like glow, but the halo is tinted (default red-orange) and starts lower; light scattered back from the film base round bright edges.",
+   "identity_with_defaults": false,
+   "kind": "spatial",
+   "params": {
+    "radius_px": {
+     "default": 12.0,
+     "doc": "Gaussian sigma",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      200.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "strength": {
+     "default": 0.3,
+     "doc": "amount",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "threshold": {
+     "default": 0.55,
+     "doc": "level where halation starts",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.2
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "tint": {
+     "default": [
+      1.0,
+      0.25,
+      0.05
+     ],
+     "doc": "halo colour weights",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "highlights_shadows": {
+   "aux_planes": [],
+   "category": "spatial",
+   "doc": "Local tone from a blurred luma: highlights < 0 pulls bright areas down, shadows > 0 opens dark areas. 1.0 = 0.1 cv at full strength.",
+   "identity_with_defaults": true,
+   "kind": "spatial",
+   "params": {
+    "highlights": {
+     "default": 0.0,
+     "doc": "< 0 recover highlights",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -3.0,
+      3.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "radius_px": {
+     "default": 60.0,
+     "doc": "Gaussian sigma",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      400.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "shadows": {
+     "default": 0.0,
+     "doc": "> 0 lift shadows",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -3.0,
+      3.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "hue_rotate": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Rotates every hue by the same angle (opponent Cb / Cr plane).",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "degrees": {
+     "default": 0.0,
+     "doc": "counter-clockwise on the hue circle",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -180.0,
+      180.0
+     ],
+     "required": false,
+     "unit": "deg"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "hue_vs_hue": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Rotate selected hues. Each point [hue, shift, width] acts with a raised-cosine influence `width` degrees each side (default 60); overlapping points blend. Hue is the angle of (Cb, Cr) of the ACEScct working values, degrees: red ~123, skin ~141, orange ~150, yellow ~173, green ~206, cyan ~300, blue ~350, magenta ~60.",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "points": {
+     "columns": [
+      {
+       "label": "hue deg",
+       "range": [
+        0.0,
+        360.0
+       ]
+      },
+      {
+       "label": "shift deg",
+       "range": [
+        -90.0,
+        90.0
+       ]
+      }
+     ],
+     "doc": "[[hue, shift(, width)], ...]",
+     "keyframable": false,
+     "kind": "points",
+     "length": [
+      1,
+      12
+     ],
+     "optional_columns": [
+      {
+       "label": "width deg",
+       "range": [
+        5.0,
+        180.0
+       ]
+      }
+     ],
+     "required": true,
+     "sorted": false,
+     "unit": null
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "hue_vs_lum": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Brightness by hue (cv offset, weighted by chroma so greys stay): points [hue, offset, width]. 0.03 is clearly visible. Hue is the angle of (Cb, Cr) of the ACEScct working values, degrees: red ~123, skin ~141, orange ~150, yellow ~173, green ~206, cyan ~300, blue ~350, magenta ~60.",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "points": {
+     "columns": [
+      {
+       "label": "hue deg",
+       "range": [
+        0.0,
+        360.0
+       ]
+      },
+      {
+       "label": "offset cv",
+       "range": [
+        -0.3,
+        0.3
+       ]
+      }
+     ],
+     "doc": "[[hue, offset(, width)], ...]",
+     "keyframable": false,
+     "kind": "points",
+     "length": [
+      1,
+      12
+     ],
+     "optional_columns": [
+      {
+       "label": "width deg",
+       "range": [
+        5.0,
+        180.0
+       ]
+      }
+     ],
+     "required": true,
+     "sorted": false,
+     "unit": null
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "hue_vs_sat": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Saturation by hue: points [hue, gain, width]; gain 1 = unchanged. Hue is the angle of (Cb, Cr) of the ACEScct working values, degrees: red ~123, skin ~141, orange ~150, yellow ~173, green ~206, cyan ~300, blue ~350, magenta ~60.",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "points": {
+     "columns": [
+      {
+       "label": "hue deg",
+       "range": [
+        0.0,
+        360.0
+       ]
+      },
+      {
+       "label": "gain",
+       "range": [
+        0.0,
+        3.0
+       ]
+      }
+     ],
+     "doc": "[[hue, gain(, width)], ...]",
+     "keyframable": false,
+     "kind": "points",
+     "length": [
+      1,
+      12
+     ],
+     "optional_columns": [
+      {
+       "label": "width deg",
+       "range": [
+        5.0,
+        180.0
+       ]
+      }
+     ],
+     "required": true,
+     "sorted": false,
+     "unit": null
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "local_contrast": {
+   "aux_planes": [],
+   "category": "spatial",
+   "doc": "Wide-radius local contrast on luma, blacks protected.",
+   "identity_with_defaults": false,
+   "kind": "spatial",
+   "params": {
+    "amount": {
+     "default": 0.15,
+     "doc": "> 0 more, < 0 softer",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -1.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "protect_blacks": {
+     "default": true,
+     "doc": null,
+     "keyframable": false,
+     "kind": "bool",
+     "required": false,
+     "unit": null
+    },
+    "radius_px": {
+     "default": 200.0,
+     "doc": "Gaussian sigma",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      5.0,
+      600.0
+     ],
+     "required": false,
+     "unit": "px"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "lum_vs_sat": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Saturation by luma: monotone curve [[luma, gain], ...] over ACEScct luma (0.15 deep shadow, 0.41 grey, 0.6 bright, 0.75+ highlights).",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "points": {
+     "columns": [
+      {
+       "label": "luma cv",
+       "range": [
+        -0.1,
+        1.5
+       ]
+      },
+      {
+       "label": "gain",
+       "range": [
+        0.0,
+        3.0
+       ]
+      }
+     ],
+     "doc": "[[luma, gain], ...]",
+     "keyframable": false,
+     "kind": "points",
+     "length": [
+      2,
+      12
+     ],
+     "optional_columns": [],
+     "required": true,
+     "sorted": true,
+     "unit": null
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "photo_to_scene": {
+   "aux_planes": [],
+   "category": "transform",
+   "doc": "Display-referred photo (sRGB JPEG / PNG read as linear light) back to scene light through the inverse ACES 2.0 SDR sRGB output transform, so the program's ACES 2.0 output gives the photo's own placement back. Highlights roll off from knee_stops to max_stops over grey. Allowed only in photo_graph.",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "knee_stops": {
+     "default": 4.5,
+     "doc": "roll-off start over 18 % grey",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      10.0
+     ],
+     "required": false,
+     "unit": "stops"
+    },
+    "max_stops": {
+     "default": 6.0,
+     "doc": "roll-off ceiling over 18 % grey",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.5,
+      12.0
+     ],
+     "required": false,
+     "unit": "stops"
+    },
+    "recovered_highlights": {
+     "default": true,
+     "doc": "keep stops over display white where every channel is > 1 (only linear_photo input can exceed 1; srgb_photo is clipped)",
+     "keyframable": false,
+     "kind": "bool",
+     "required": false,
+     "unit": null
+    }
+   },
+   "photo_graph_only": true,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "printer_lights": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Film-lab printer points: 1 point = 0.025 log10 exposure (~1/12 stop) per channel.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "blue": {
+     "default": 0.0,
+     "doc": "blue points",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -24.0,
+      24.0
+     ],
+     "required": false,
+     "unit": "points"
+    },
+    "green": {
+     "default": 0.0,
+     "doc": "green points",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -24.0,
+      24.0
+     ],
+     "required": false,
+     "unit": "points"
+    },
+    "red": {
+     "default": 0.0,
+     "doc": "red points",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -24.0,
+      24.0
+     ],
+     "required": false,
+     "unit": "points"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "rgb_mixer": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Channel mixer on the working values: out = M\u00b7in with rows red, green, blue ([1, 0, 0] etc. = unchanged); preserve_luma keeps each pixel's luma.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "blue": {
+     "default": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "doc": "output blue = blue\u00b7[r, g, b]",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      -2.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "green": {
+     "default": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "doc": "output green = green\u00b7[r, g, b]",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      -2.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "preserve_luma": {
+     "default": false,
+     "doc": "add back the luma the mix changed",
+     "keyframable": false,
+     "kind": "bool",
+     "required": false,
+     "unit": null
+    },
+    "red": {
+     "default": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "doc": "output red = red\u00b7[r, g, b]",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      -2.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "sat_vs_lum": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Luma by saturation: monotone curve [[chroma, offset], ...] adds offset (cv) to the luma of colours of that chroma (negative darkens saturated colours).",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "points": {
+     "columns": [
+      {
+       "label": "chroma",
+       "range": [
+        0.0,
+        1.0
+       ]
+      },
+      {
+       "label": "offset cv",
+       "range": [
+        -0.3,
+        0.3
+       ]
+      }
+     ],
+     "doc": "[[chroma, offset], ...]",
+     "keyframable": false,
+     "kind": "points",
+     "length": [
+      2,
+      12
+     ],
+     "optional_columns": [],
+     "required": true,
+     "sorted": true,
+     "unit": null
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "sat_vs_sat": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Remap opponent chroma: monotone curve [[chroma_in, chroma_out], ...] (0.05 moderate, 0.1+ strong).",
+   "identity_with_defaults": false,
+   "kind": "pointwise",
+   "params": {
+    "points": {
+     "columns": [
+      {
+       "label": "chroma in",
+       "range": [
+        0.0,
+        1.0
+       ]
+      },
+      {
+       "label": "chroma out",
+       "range": [
+        0.0,
+        1.0
+       ]
+      }
+     ],
+     "doc": "[[c_in, c_out], ...]",
+     "keyframable": false,
+     "kind": "points",
+     "length": [
+      2,
+      12
+     ],
+     "optional_columns": [],
+     "required": true,
+     "sorted": true,
+     "unit": null
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "saturation": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Saturation: scales opponent chroma (Cb, Cr) of the working values. protect_skin 0..1 keeps skin hues (141 +- 15..40 deg) near their own saturation.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "amount": {
+     "default": 1.0,
+     "doc": "1 = unchanged, 0 = monochrome",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      3.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "protect_skin": {
+     "default": 0.0,
+     "doc": "1 = skin untouched",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "sharpen": {
+   "aux_planes": [],
+   "category": "spatial",
+   "doc": "Unsharp mask on luma with noise coring (detail below `coring` is left alone).",
+   "identity_with_defaults": false,
+   "kind": "spatial",
+   "params": {
+    "amount": {
+     "default": 0.3,
+     "doc": "strength",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "coring": {
+     "default": 0.008,
+     "doc": "detail threshold",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      0.05
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "radius_px": {
+     "default": 1.5,
+     "doc": "Gaussian sigma",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.3,
+      10.0
+     ],
+     "required": false,
+     "unit": "px"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "split_tone": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Tints shadows and highlights toward two hues (opponent-plane offsets weighted by luma), balance moves the split point.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "balance": {
+     "default": 0.0,
+     "doc": "moves the split from 18 % grey",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -0.2,
+      0.3
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "highlight_amount": {
+     "default": 0.0,
+     "doc": "0.01 subtle",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      0.1
+     ],
+     "required": false,
+     "unit": "chroma"
+    },
+    "highlight_hue": {
+     "default": 141.0,
+     "doc": "hue of the highlight tint",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      360.0
+     ],
+     "required": false,
+     "unit": "deg"
+    },
+    "shadow_amount": {
+     "default": 0.0,
+     "doc": "0.01 subtle",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      0.1
+     ],
+     "required": false,
+     "unit": "chroma"
+    },
+    "shadow_hue": {
+     "default": 315.0,
+     "doc": "315 teal, 141 skin / orange",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      360.0
+     ],
+     "required": false,
+     "unit": "deg"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "vibrance": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Saturation weighted toward muted colours: k = 1 + amount \u00b7 (1 \u2212 smoothstep(0, 0.12, C)); already saturated colours move little.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "amount": {
+     "default": 0.0,
+     "doc": "+ richer muted colours, \u2212 calmer",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -1.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "vignette": {
+   "aux_planes": [],
+   "category": "position",
+   "doc": "Darken (amount > 0) or brighten (< 0) the frame edges. 0.1 subtle, 0.3 strong.",
+   "identity_with_defaults": false,
+   "kind": "position",
+   "params": {
+    "amount": {
+     "default": 0.1,
+     "doc": "strength",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -0.5,
+      0.5
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "roundness": {
+     "default": 1.0,
+     "doc": "1 = circular, 0 = follows the frame shape",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "softness": {
+     "default": 0.6,
+     "doc": "edge softness",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.05,
+      1.2
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": false,
+    "reference": true
+   }
+  },
+  "wheels": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Lift / gamma / gain / offset colour wheels as ACEScct offsets weighted by soft tonal ranges of luma (shadows, mids, highlights). 0.01 cv is a visible tint, 0.03 strong.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "gain": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "doc": "highlight colour / level",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      -0.3,
+      0.3
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "gamma": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "doc": "mid-tone colour / level",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      -0.3,
+      0.3
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "lift": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "doc": "shadow colour / level",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      -0.3,
+      0.3
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "master_gain": {
+     "default": 0.0,
+     "doc": "highlight level",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -0.3,
+      0.3
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "master_gamma": {
+     "default": 0.0,
+     "doc": "mid level",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -0.3,
+      0.3
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "master_lift": {
+     "default": 0.0,
+     "doc": "shadow level",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -0.3,
+      0.3
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "master_offset": {
+     "default": 0.0,
+     "doc": "overall level",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -0.3,
+      0.3
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "offset": {
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "doc": "whole-image colour / level",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      -0.3,
+      0.3
+     ],
+     "required": false,
+     "unit": "cv"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
+  "white_balance": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "Temperature / tint as linear-light gains per AP1 channel, in stops: decode, multiply by 2^[temperature, -tint, -temperature], encode (above the toe the same as adding [...] / 17.52).",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "temperature": {
+     "default": 0.0,
+     "doc": "> 0 warmer (red up, blue down)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -2.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "stops"
+    },
+    "tint": {
+     "default": 0.0,
+     "doc": "> 0 magenta, < 0 green",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      -2.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "stops"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  }
+ },
+ "outputs": {
+  "aces2": {
+   "doc": "ACES 2.0 output transform (OpenColorIO built-in ACES 2.0 studio config): SDR 100-nit Rec.709 on an sRGB or Rec.1886 (gamma 2.4) display, SDR P3-D65 (Display P3 or DCI-style P3-D65), or HDR: PQ (Rec.2100) at 1000 / 2000 / 4000 nits in P3-D65 or Rec.2020, HLG at 1000 nits. The grading loop measures on SDR Rec.709 only.",
+   "params": {
+    "display": {
+     "choices": [
+      "srgb",
+      "rec1886",
+      "display_p3",
+      "p3d65",
+      "pq_p3_1000",
+      "pq_rec2020_1000",
+      "pq_p3_2000",
+      "pq_p3_4000",
+      "hlg_p3_1000"
+     ],
+     "default": "srgb",
+     "doc": null,
+     "keyframable": false,
+     "kind": "enum",
+     "required": false,
+     "unit": null
+    }
+   }
+  },
+  "acescct": {
+   "doc": "No output transform: ACEScct code values out (an LMT).",
+   "params": {}
+  },
+  "display_encode": {
+   "doc": "Working values to Rec.709 linear, saturated colours above 0.9 soft-compressed toward their luminance, then the display encoding. No tone scale.",
+   "params": {
+    "eotf": {
+     "choices": [
+      "srgb",
+      "gamma24"
+     ],
+     "default": "srgb",
+     "doc": null,
+     "keyframable": false,
+     "kind": "enum",
+     "required": false,
+     "unit": null
+    }
+   }
+  }
+ },
+ "version": "0.1"
+}

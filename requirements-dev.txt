@@ -1,0 +1,15 @@
+# Exact versions the goldens were made with (CI installs these). Update together with tools/make_golden.py.
+numpy==2.5.4
+scipy==1.18.1
+opencolorio==2.6.0
+pillow==13.0.0
+anthropic==2.3.0
+pytest==9.1.1
+colour-science==0.4.7
+OpenEXR==3.5.2
+tifffile==2026.10.15
+pip-licenses==5.5.5
+# WGSL test harness (tests/test_wgsl.py); the tests skip when wgpu finds no adapter (CI has no GPU)
+wgpu==0.32.0
+# RAW stills for tools/raw_to_video.py (the `raw` extra)
+rawpy==0.27.1

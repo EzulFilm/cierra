@@ -1,0 +1,9 @@
+# Keyframes: fade up from three stops under over the first 24 frames, with a smooth ease.
+cierra 0.1
+name "fade in"
+output aces2(display: srgb)
+fps 24
+
+node fade = exposure(stops: keys(smooth, 0: -3, 24: 0))
+
+graph fade

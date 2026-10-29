@@ -1,0 +1,47 @@
+[project]
+name = "cierra"
+version = "0.1.0"
+description = "A colour-grading language: grades as small checked programs that compile to any target"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "Ezul" }]
+keywords = ["colour grading", "color grading", "ACES", "DCTL", "LUT", "CLF", "ASC CDL", "WGSL", "LLM"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Video",
+]
+dependencies = ["numpy>=1.26", "scipy>=1.11", "opencolorio>=2.5"]
+
+[project.urls]
+Homepage = "https://github.com/EzulFilm/cierra"
+Source = "https://github.com/EzulFilm/cierra"
+Issues = "https://github.com/EzulFilm/cierra/issues"
+
+[project.scripts]
+cierra = "cierra.__main__:main"
+
+[project.optional-dependencies]
+images = ["pillow>=10"]          # PNG / JPEG / TIFF in and out of the command line, evaluation sheets
+llm = ["anthropic>=2.3"]         # the Anthropic API driver (the open-weight driver needs nothing extra)
+gpu = ["wgpu>=0.30"]             # running the WGSL target (tests skip without an adapter)
+cuda = ["cupy-cuda12x[ctk]>=14"] # the reference engine on an NVIDIA GPU (render(..., device="gpu"); NVIDIA's runtime
+                                 # libraries come from PyPI under NVIDIA's licence, see docs/sbom.json)
+raw = ["rawpy>=0.27"]            # tools/raw_to_video.py: camera RAW stills through LibRaw
+dev = ["pytest>=8", "colour-science>=0.4", "OpenEXR>=3.3", "tifffile>=2024", "pip-licenses>=5", "pillow>=10",
+       "anthropic>=2.3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -p no:cacheprovider --capture=sys --basetemp=cache/pytest"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["cierra*"]

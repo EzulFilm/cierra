@@ -1,0 +1,38 @@
+# Teal and orange, the blockbuster complementary look, done the way a colourist does it rather than as a filter:
+# the contrast and the split carry the look, and skin is keyed out of every colour move so faces stay faces.
+#   shape         a firmer S around grey: deeper shadows, a soft shoulder (black and grey stay put)
+#   split         teal into the shadows, warm into the highlights (split_tone, the heart of the look)
+#   warm_top      the highlights pushed further warm with the gain wheel (split_tone fades out toward white)
+#   cyan_world    pushes greens and blues toward teal, yellows toward one warm orange (hue_vs_hue)
+#   world_sat     richer colour everywhere except skin
+#   skin_hold     skin is keyed (the skin preset OR a wider warm qualifier) and its saturation calmed a touch, so
+#                 the warm push never turns faces orange
+#   deep_colour   saturated colours a little deeper rather than brighter (sat_vs_lum), so the teal reads rich
+#   edges         a soft vignette to hold the eye in the frame
+# Use it on action, adventure and trailers; it works best on daylight exteriors with people in them.
+cierra 0.1
+name "blockbuster teal and orange"
+about "Firm contrast, teal shadows and warm highlights, greens and blues pulled to teal, skin protected."
+input aces2065_1
+output aces2(display: rec1886)
+
+node shape = curve(points: [[0.0729, 0.0729], [0.25, 0.225], [0.4136, 0.4136], [0.6, 0.625], [1, 0.98]])
+  label "firmer S: deeper shadows, soft shoulder"
+node split = split_tone(shadow_hue: 315, shadow_amount: 0.045, highlight_hue: 150, highlight_amount: 0.035, balance: 0.03)
+  label "teal shadows, warm highlights"
+  mask not skin(width: 34, soft: 0.08)
+node warm_top = wheels(gain: [0.03, 0.008, -0.025])
+  label "highlights pushed warm"
+  mask not skin(width: 34, soft: 0.08)
+node cyan_world = hue_vs_hue(points: [[206, 55, 55], [350, -30, 45], [173, -18, 30]])
+  label "greens and blues toward teal, yellows toward orange"
+node world_sat = saturation(amount: 1.18, protect_skin: 1)
+  label "richer colour, skin untouched"
+node skin_hold = hue_vs_sat(points: [[141, 0.9, 25], [155, 0.85, 20]])
+  label "skin a touch calmer so it stays natural next to the orange"
+  mask skin(width: 34, soft: 0.08) or qualifier(hue: 130..160, sat: 0.01..0.12, lum: 0.2..0.75)
+node deep_colour = sat_vs_lum(points: [[0, 0], [0.06, -0.01], [0.15, -0.04]])
+  label "saturated colours deeper, not brighter"
+node edges = vignette(amount: 0.15, softness: 0.7)
+
+graph shape -> split -> warm_top -> cyan_world -> world_sat -> skin_hold -> deep_colour -> edges

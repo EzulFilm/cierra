@@ -1,0 +1,13 @@
+# A RAW still shot under tungsten light, decoded with a daylight balance (so the light's orange is in the picture):
+# bring it up to a normal exposure, take the orange out (keyframed, so the movie from `make pipeline-demo` shows the
+# correction happening), then a gentle contrast that keeps black where it is.
+cierra 0.1
+name "tungsten fix"
+input aces2065_1
+output aces2(display: rec1886)
+
+node expose = exposure(stops: 1.4)
+node daylight = white_balance(temperature: keys(smooth, 0: 0, 24: 0, 60: -0.7), tint: 0.05)
+node shape = curve(points: [[0.0729, 0.0729], [0.3, 0.29], [0.4136, 0.4136], [0.6, 0.61], [1, 0.97]])
+
+graph expose -> daylight -> shape

@@ -1,0 +1,25 @@
+{
+ "about": "Held-out notes x frames for scoring Cierra's LLM loop (scored by cierra.notes note checks). Written after the short-reference hints and NOT used to write them: do not tune hints or examples on these cases. Frames: tests/data/SOURCES.md. 2026-10-28: frames moved from the Netflix clips to CC0 camera photos (tests/data/SOURCES.md); case ids renamed for the new pictures and the one note about forge sparks rewritten for the window, same checks. Scores before this date are on the earlier frames and are not comparable.",
+ "cases": [
+  {
+   "id": "night_window",
+   "frame": "window_1",
+   "notes": "Cooler and a bit darker for a night feel, less colour overall, keep the blacks clean."
+  },
+  {
+   "id": "bright_pens",
+   "frame": "pens",
+   "notes": "Brighter and warmer, more colour, a little less contrast."
+  },
+  {
+   "id": "cool_crowd",
+   "frame": "crowd",
+   "notes": "Cooler overall, a little darker, more contrast."
+  },
+  {
+   "id": "warm_window",
+   "frame": "window_0",
+   "notes": "Warmer overall, less contrast, keep the highlights soft."
+  }
+ ]
+}

@@ -1,0 +1,31 @@
+# Bleach bypass: the lab skips the bleach, so the silver stays in the print on top of the colour dyes. The result
+# is a black-and-white image laid over the colour one: harsh contrast, muted colour, metallic highlights, dense
+# blacks. Here that is literally what the graph does: a layer() with the colour picture at the bottom and a
+# contrasty monochrome copy on top, blended with overlay at partial opacity (the strength of the "bypass").
+#   colour        the bottom layer: the picture with a little less colour already, like the dyes under the silver
+#   silver        the top layer: monochrome (saturation 0) ...
+#   silver_curve  ... with a hard print curve, the silver image
+#   layer(...)    overlay of the silver over the colour at 0.7: contrast up, colour down, like 70 % of the silver kept
+#   recover       overlay on ACEScct code values pulls mid-grey down; put grey back where it was
+#   steel         cool the shadows and mids a touch, keep highlights neutral: the steely look of war and crime films
+#   grit          fine monochrome grain; the look is usually shot on fast stock
+# Use it for war films, gritty crime and sports promos; dial the layer opacity for how much silver you keep.
+cierra 0.1
+name "bleach bypass"
+about "Monochrome silver layer overlaid on the colour picture: hard contrast, muted colour, steely shadows."
+input aces2065_1
+output aces2(display: rec1886)
+
+node colour = saturation(amount: 0.8)
+  label "the dye image, a little calmer"
+node silver = saturation(amount: 0)
+  label "the silver image: monochrome"
+node silver_curve = curve(points: [[0.0729, 0.0729], [0.28, 0.22], [0.4136, 0.4136], [0.56, 0.64], [1, 1]])
+  label "hard print curve on the silver"
+node recover = exposure(stops: 0.65)
+  label "overlay darkens grey: bring it back"
+node steel = wheels(lift: [-0.006, 0, 0.008], gamma: [-0.006, 0, 0.004])
+  label "steely shadows"
+node grit = grain(amount: 0.18, size_px: 1.4, chroma: 0, seed: 1971)
+
+graph layer(colour, silver -> silver_curve, mode: overlay, opacity: 0.7) -> recover -> steel -> grit

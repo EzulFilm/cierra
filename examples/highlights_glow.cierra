@@ -1,0 +1,10 @@
+# A gentle glow on bright highlights with a light vignette. Spatial ops: the reference engine renders them, and
+# `cierra dctl --split` cuts the DCTL around them (a 3D LUT cannot hold them).
+cierra 0.1
+name "highlights glow"
+output aces2(display: srgb)
+
+node bloom = glow(threshold: 0.62, radius_px: 30, strength: 0.15)
+node edges = vignette(amount: 0.2)
+
+graph bloom -> edges

@@ -1,0 +1,23 @@
+cierra 0.1
+
+name "Beauty Modern"
+about "Beauty on the modern base: the ACES 2.0 SDR rendering, a quarter stop brighter and more open than Cinematic Modern (18 % grey at L* ~44 on the reference chart), clean blacks held at the reference level, a long shoulder to display white, richer mid-tone colour, warm glowing skin (chroma up on skin only, hue kept), neutral greys, strong blues held back."
+input linear_rec709
+output aces2()
+
+node to_scene = photo_to_scene()
+  label "photo back to the scene (inverse ACES 2.0): keeps its placement, white, colour"
+node bright_open_mids = curve(points: [[0.0729, 0.0729], [0.25, 0.247], [0.4135, 0.4278], [0.55, 0.562], [0.7, 0.705], [1, 1]])
+  label "bright, open mids (+1/4 stop at grey); deep shadows and black held"
+node richer_colour = saturation(amount: 1.05, protect_skin: 1)
+  label "richer colour, skin protected"
+node skin_warmth = saturation(amount: 1.16)
+  label "skin warmth: chroma up on skin only"
+  mask qualifier(hue: 128..156, sat: 0.006..0.05, lum: 0.2..0.6)
+node strong_blues_held = hue_vs_sat(points: [[350, 0.94, 40]])
+  label "strong blues held back"
+node mid_colour = lum_vs_sat(points: [[0.2, 0.95], [0.35, 1.05], [0.45, 1.05], [0.6, 0.92]])
+  label "mid colour, quiet shadows and highlights"
+
+photo_graph to_scene
+graph bright_open_mids -> richer_colour -> skin_warmth -> strong_blues_held -> mid_colour

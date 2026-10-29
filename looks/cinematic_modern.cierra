@@ -1,0 +1,20 @@
+cierra 0.1
+
+name "Cinematic Modern"
+about "Modern digital cinema: the ACES 2.0 SDR rendering with a light LMT. Clean deep blacks, 18 % grey at L* ~41 (a cinema camera reference Rec.709: 42), a slightly firmer modern contrast pivoted in the shadows, a long highlight shoulder that reaches display white, neutral greys, controlled saturation (strong blues and oranges held back, quiet deep shadows and highlights), skin on its own hue."
+input linear_rec709
+output aces2()
+
+node to_scene = photo_to_scene()
+  label "photo back to the scene (inverse ACES 2.0): keeps its placement, white, colour"
+node modern_contrast = contrast(amount: 1.04, pivot: 0.3)
+  label "modern contrast, pivot in the shadows (black stays clean)"
+node controlled_saturation = saturation(amount: 0.97)
+  label "controlled saturation"
+node hold_hot_colours = hue_vs_sat(points: [[350, 0.92, 40], [158, 0.95, 20]])
+  label "strong blues and oranges held back (ACES 2.0 renders them hot)"
+node quiet_extremes = lum_vs_sat(points: [[0.2, 0.95], [0.4, 1], [0.5, 1], [0.6, 0.92]])
+  label "quiet colour in deep shadows and highlights"
+
+photo_graph to_scene
+graph modern_contrast -> controlled_saturation -> hold_hot_colours -> quiet_extremes
