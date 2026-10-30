@@ -26,7 +26,7 @@ Issues = "https://github.com/EzulFilm/cierra/issues"
 cierra = "cierra.__main__:main"
 
 [project.optional-dependencies]
-images = ["pillow>=10"]          # PNG / JPEG / TIFF in and out of the command line, evaluation sheets
+images = ["pillow>=10", "tifffile>=2024"]  # PNG / JPEG / TIFF (8, 16-bit, float) in and out, evaluation sheets
 llm = ["anthropic>=2.3"]         # the Anthropic API driver (the open-weight driver needs nothing extra)
 gpu = ["wgpu>=0.30"]             # running the WGSL target (tests skip without an adapter)
 cuda = ["cupy-cuda12x[ctk]>=14"] # the reference engine on an NVIDIA GPU (render(..., device="gpu"); NVIDIA's runtime

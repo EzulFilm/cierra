@@ -19,7 +19,7 @@ LOOK = load("cierra 0.1\nnode w = white_balance(temperature: 0.15, tint: 0.05)\n
 # Mean dE00 the fit must reach per frame. Measured on the CC0 frames (2026-10-28): crowd 0.61, pens 1.40 (from 4.7
 # and 5.0 ungraded). A frame with less variety (a green felt) pins the curve and white balance less well. On the
 # window frame (1.23) the fit reads saturation 0.96 for 0.85: too little colour in it to separate saturation from
-# the curve. Improving that is TODO G8 (per-hue / per-brightness fit), not a reason to loosen the crowd.
+# the curve. Improving that needs a per-hue / per-brightness fit (not written yet), not a looser crowd limit.
 FIT_LIMIT = {"crowd": 0.7, "pens": 1.5}
 
 

@@ -1,15 +1,20 @@
 """Damage checks: did the grade break the picture? Compared on the display output, graded against ungraded, so a
 frame that was already clipped or crushed is not blamed on the grade. Any flag means "needs a human": a loop or tuner
 must not report the grade as done, however well it met the notes. Simple measures with no perceptual model; none is
-validated against viewers (plain pixel percentages, and the posterisation test
-is a heuristic, not a published method; CAMBI (Netflix, BSD-3) is the published candidate). They veto damage only;
-they never rank looks:
+validated against viewers (plain pixel percentages; the posterisation test is a heuristic; the banding index follows
+the published idea of CAMBI but is not CAMBI). They veto damage only; they never rank looks:
 
 - clipped highlights: % of pixels with a channel at display white (>= 0.998);
 - crushed blacks: % of pixels with every channel at display black (<= 0.005);
 - milky blacks: the darkest 1 % of luma lifted (washed out);
 - posterisation: empty 8-bit luma histogram bins inside the image's own p1..p99 luma range that were filled before
-  (a curve or contrast step that tears smooth gradients apart).
+  (a curve or contrast step that tears smooth gradients apart);
+- banding added: cierra.banding's index, graded minus ungraded, at the 480 px preview (images wider than 720 px are
+  box-averaged to about 480 px first: full size is slow and less reliable on noisy footage). Validated on gradients:
+  smooth, 10-bit and dithered 0, posterised 0.15-0.25; a steep grade of an 8-bit sky +0.13 to +0.22, of a 16-bit one
+  within +-0.02. Threshold 0.06: 108 look x frame cases reach at most +0.024; a x3 grade of a gentle 8-bit sky
+  adds 0.08-0.15. Only at the preview size: at full size noisy 16-bit footage reaches +0.06-0.10.
+  Deltas over 0.03 are kept in "watch" (not flagged).
 
 Thresholds are judgement, set on the test frames (a +0.3 stop, saturation 1.1 grade passes on every frame; +-2
 stops, a hard curve step or lifted blacks do not); clipping and crushing must also rise by more than 15 % of what
@@ -18,22 +23,34 @@ the ungraded frame already had (the spark frames start 14-19 % white). They are 
 
 import numpy as np
 
-THRESHOLDS = {"clipped": 1.0, "crushed": 1.0, "relative": 0.15, "milky": 0.04, "posterised": 6}
+THRESHOLDS = {"clipped": 1.0, "crushed": 1.0, "relative": 0.15, "milky": 0.04, "posterised": 6, "banding": 0.06,
+              "banding_watch": 0.03}
 
 
 def _luma(d):
     return 0.2126 * d[0] + 0.7152 * d[1] + 0.0722 * d[2]
 
 
+def _near_480(d):
+    """Box-average to about 480 px wide (averaging, as the preview does: skipping pixels would keep full-size noise)."""
+    s = max(1, round(d.shape[-1] / 480)) if d.shape[-1] > 720 else 1
+    if s == 1:
+        return d
+    h, w = d.shape[1] // s * s, d.shape[2] // s * s
+    return d[:, :h, :w].reshape(3, h // s, s, w // s, s).mean(axis=(2, 4))
+
+
 def measure(d):
     """The damage measures of one display image (3, H, W) in 0..1."""
+    from .banding import banding_index
     d = np.clip(d, 0, 1)
     y = _luma(d)
     lo, hi = np.quantile(y, [0.01, 0.99])
     hist = np.bincount(np.clip((y * 255 + 0.5).astype(int), 0, 255).ravel(), minlength=256)
     a, b = int(lo * 255 + 0.5), int(hi * 255 + 0.5)
     return {"clipped": float(100 * (d.max(0) >= 0.998).mean()), "crushed": float(100 * (d.max(0) <= 0.005).mean()),
-            "milky": float(lo), "empty_bins": int((hist[a:b + 1] == 0).sum()), "range_bins": b - a + 1}
+            "milky": float(lo), "empty_bins": int((hist[a:b + 1] == 0).sum()), "range_bins": b - a + 1,
+            "banding": round(banding_index(_near_480(d))[0], 4)}
 
 
 def damage(ungraded, graded):
@@ -54,7 +71,14 @@ def damage(ungraded, graded):
     if gaps > t["posterised"]:
         flags.append(f"posterisation: {m1['empty_bins']} empty 8-bit luma levels inside the image's range "
                      f"(ungraded {m0['empty_bins']}, allowed +{t['posterised']})")
-    return {"flags": flags, "needs_human": bool(flags), "before": m0, "after": m1}
+    watch = []  # near misses, recorded but not flagged: the first real skies show whether the threshold is tight
+    added = m1["banding"] - m0["banding"]
+    if added > t["banding"]:
+        flags.append(f"banding added: index {m1['banding']:.3f} (ungraded {m0['banding']:.3f}, allowed "
+                     f"+{t['banding']})")
+    elif added > t["banding_watch"]:
+        watch.append(f"banding near the threshold: +{added:.3f} (flagged over +{t['banding']})")
+    return {"flags": flags, "needs_human": bool(flags), "watch": watch, "before": m0, "after": m1}
 
 
 def check_program(prog, image, input=None, width=480):

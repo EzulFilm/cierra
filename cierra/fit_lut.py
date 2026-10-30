@@ -32,7 +32,10 @@ one pointwise function of colour, so spatial effects (blur, glow, grain), window
 cannot come back out of it.
 
 The LUT maps the domain `input` to the same domain: ACEScct (the default), ACEScg or linear Rec.709; the program
-works in ACEScct like every Cierra program.
+works in ACEScct like every Cierra program. A display-referred LUT (Rec.709 video code values in and out, as most
+"creative" LUTs are) is read with srgb_display or rec709_display (gamma 2.4): its codes are decoded with that EOTF,
+and the program is written with the matching photo input (srgb_photo / rec1886_photo) and display_encode output, so
+it has no tone scale either.
 """
 
 import functools
@@ -52,7 +55,15 @@ DOMAINS = {
     # negative values keep the ACEScct toe's straight line (a LUT may map a colour below black and back)
     "acescg": (C.acescct_encode, C.acescct_decode),
     "linear_rec709": (lambda v: C.acescct_encode(C.apply_matrix(C.M709_AP1, v)), C.from_working),
+    # display-referred: display code values in and out, decoded with the display's EOTF (no tone scale)
+    "srgb_display": (lambda v: C.to_working(C.display_decode(v, "srgb")),
+                     lambda v: C.srgb_encode(np.clip(C.from_working(v), 0, 1))),
+    "rec709_display": (lambda v: C.to_working(C.display_decode(v, "gamma24")),
+                       lambda v: np.power(np.clip(C.from_working(v), 0, 1), 1 / 2.4)),
 }
+# the program a domain's fit is written as: (input, output)
+PROGRAM_IO = {"srgb_display": ("srgb_photo", "display_encode(eotf: srgb)"),
+              "rec709_display": ("rec1886_photo", "display_encode(eotf: gamma24)")}
 HUES = np.arange(0.0, 360.0, 30.0)  # hue points of the fitted hue curves (width 30: a partition of unity)
 LUM_KNOTS = np.array([0.0, 0.1, 0.2, 0.3, GREY, 0.5, 0.6, 0.7, 0.85, 1.0])
 TOL_PARAM = 0.0015   # cv: a parametric primary must fit the neutral axis this well
@@ -60,6 +71,7 @@ TOL_GAIN = 0.004     # cv: the same for linear gains, whose kink at the ACEScct 
 TOL_CURVE = 0.0008   # cv: greedy curve knots are added until the neutral axis fits this well (or 12 points)
 QUALIFIER_TOOLS = ("qualifier", "hsl", "key", "3d")
 MAX_CUBE = 129
+MAX_CUBE_BYTES = MAX_CUBE ** 3 * 64 + 65536  # 64 bytes a row (long floats) and a header
 
 
 class LUTFitError(ValueError):
@@ -71,6 +83,9 @@ class LUTFitError(ValueError):
 def read_cube(path):
     """A .cube 3D LUT -> (lut (3, N, N, N) indexed [channel, b, g, r], domain_min (3,), domain_max (3,))."""
     try:
+        n = Path(path).stat().st_size
+        if n > MAX_CUBE_BYTES:
+            raise LUTFitError(f"{n} bytes: larger than any {MAX_CUBE}-point .cube ({MAX_CUBE_BYTES} at most)")
         return _parse_cube(Path(path).read_text(encoding="ascii", errors="replace"))
     except LUTFitError:
         raise
@@ -107,6 +122,8 @@ def _parse_cube(text):
                 continue  # other keywords (LUT_IN_VIDEO_RANGE, ...) do not change a full-range float LUT
             if len(vals) != 3:
                 raise LUTFitError(f"bad LUT row {line.strip()!r}")
+            if len(rows) >= (size or MAX_CUBE) ** 3:
+                raise LUTFitError(f"more rows than LUT_3D_SIZE ** 3 (or {MAX_CUBE} ** 3 before it)")
             rows.append(vals)
             if size and len(rows) > size ** 3:
                 raise LUTFitError("more rows than LUT_3D_SIZE ** 3")
@@ -162,7 +179,8 @@ def _text(nodes, input="acescct", name="", about=""):
         lines.append(f"name {q(name)}")
     if about:
         lines.append(f"about {q(about)}")
-    lines += [f"input {input}", "output aces2()", ""]
+    inp, out = PROGRAM_IO.get(input, (input, "aces2()"))
+    lines += [f"input {inp}", f"output {out}", ""]
     for n in nodes:
         lines.append(f"node {n['id']} = {n['call']}")
         if n.get("label"):

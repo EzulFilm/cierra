@@ -11,6 +11,8 @@ from pathlib import Path
 
 import numpy as np
 
+TIMEOUT = 600  # seconds: a compiler or test harness that hangs fails instead of holding the run
+
 SHIM = r"""
 #include <math.h>
 #include <stddef.h>
@@ -65,12 +67,13 @@ def run_cuda(cuda_text, code, px_scale=None, workdir=None):
         src.write_text(SHIM + "\n" + cuda_text + "\n" + MAIN)
         exe = Path(tmp) / "prog"
         r = subprocess.run(["g++", "-std=c++17", "-O1", "-ffp-contract=off", "-o", str(exe), str(src), "-lm"],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True,
+                           timeout=TIMEOUT)
         if r.returncode:
             raise RuntimeError("CUDA source did not compile as C++:\n" + r.stderr[-4000:])
         data = np.ascontiguousarray(code.transpose(1, 2, 0), dtype=np.float32).tobytes()
         args = [str(exe), str(w), str(h)] + ([] if px_scale is None else [scale_arg(px_scale)])
-        r = subprocess.run(args, input=data, capture_output=True)
+        r = subprocess.run(args, input=data, capture_output=True, timeout=TIMEOUT)
         if r.returncode:
             raise RuntimeError(f"CUDA CPU harness failed ({r.returncode})")
         out = np.frombuffer(r.stdout, dtype=np.float32).reshape(h, w, 3)

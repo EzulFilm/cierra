@@ -12,7 +12,8 @@ Modes: loop      = grade_loop with revision (up to --iters rounds); best version
                    nodes), then cierra.tuner sets the numbers against the restatement
        translate = only the restatement, scored against the checks (hit / missed / reversed / extra); no render
 Every tuner / translate case also records the restatement's own score ("intent").
-Sets: heldout (tests/data/heldout.json, notes in the checks' own words) and freeform (heldout_freeform.json: notes
+Sets: heldout (tests/data/heldout.json, notes in the checks' own words), freeform_b (heldout_freeform_b.json: 40 more
+free-form cases written blind, 2026-10-29) and freeform (heldout_freeform.json: notes
 outside that vocabulary; each case's hidden "checks" are what it is scored on and are never shown to the model).
 Every case is scored the same way: the final program rendered at 480 px, each check against the ungraded frame
 (met = right way / ok). Writes out/evals/<UTC>_<label>/results.json and prints a table.
@@ -77,6 +78,7 @@ def run_case(case, mode, driver, iters, out, log, translator="axes", structure="
         met, total, rows = len(intent["hit"]), len(probes_for(want)), []
     else:
         met, total, rows = score(prog, want, img)
+    qc = check_program(prog, img) if mode != "translate" else None
     usage = []
     for r in recs:
         u = r.get("usage") or {}
@@ -85,13 +87,14 @@ def run_case(case, mode, driver, iters, out, log, translator="axes", structure="
             "translated": translated, "translation_reply": raw, "intent": intent, "met": met, "total": total,
             "seconds": round(seconds, 1), "rounds": len(recs),
             "rejected": sum("errors" in r for r in recs), "reasked": sum(bool(r.get("reasked")) for r in recs),
+            "capped": [c for r in recs for c in r.get("capped") or []],  # values the loop pulled inside the bounds
             "rejections": [" | ".join(r["errors"].splitlines()[:3])[:300] for r in recs if r.get("errors")],
             "grammar": any((r.get("usage") or {}).get("grammar") for r in recs),
             "input_tokens": sum(u.get("input_tokens", 0) for u in usage),
             "output_tokens": sum(u.get("output_tokens", 0) for u in usage),
             "tuner": tuner_info and {k: tuner_info.get(k) for k in ("evals", "added_nodes", "deficits", "clamped",
                                                                     "unmet")},
-            "damage": check_program(prog, img)["flags"] if mode != "translate" else None,
+            "damage": qc and qc["flags"], "watch": qc and qc["watch"],  # watch: near misses, not flagged
             "note_checks": rows, "program": format_program(prog)}
 
 
@@ -104,9 +107,10 @@ def main():
     ap.add_argument("--label", required=True)
     ap.add_argument("--iters", type=int, default=4)
     ap.add_argument("--cases", nargs="*", help="case ids (default all)")
-    ap.add_argument("--set", choices=("heldout", "freeform"), default="heldout")
+    ap.add_argument("--set", choices=("heldout", "freeform", "freeform_b"), default="heldout")
     a = ap.parse_args()
-    name = {"heldout": "heldout.json", "freeform": "heldout_freeform.json"}[a.set]
+    name = {"heldout": "heldout.json", "freeform": "heldout_freeform.json",
+            "freeform_b": "heldout_freeform_b.json"}[a.set]
     cases = json.loads((ROOT / "tests" / "data" / name).read_text())["cases"]
     if a.cases:
         cases = [c for c in cases if c["id"] in a.cases]

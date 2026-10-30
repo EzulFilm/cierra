@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = {"numpy", "scipy", "opencolorio"}
 LLM = {"anthropic"}
-IMAGES = {"pillow"}  # the `images` extra: command-line image I/O and evaluation sheets
+IMAGES = {"pillow", "tifffile"}  # the `images` extra: command-line image I/O and evaluation sheets
 RAW = {"rawpy"}  # the `raw` extra: tools/raw_to_video.py
 CUDA = {"cupy-cuda12x"}  # the `cuda` extra: the reference engine on an NVIDIA GPU (cierra.backend)
 # NVIDIA's CUDA runtime libraries, pulled in by cupy's `ctk` extra: proprietary (NVIDIA EULA), downloaded by the user

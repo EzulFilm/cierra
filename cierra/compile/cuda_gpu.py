@@ -14,6 +14,8 @@ import numpy as np
 
 from .cuda_cpu import scale_arg
 
+TIMEOUT = 600  # seconds: a compiler or test harness that hangs fails instead of holding the run
+
 HOST_MAIN = r"""
 int main(int argc, char **argv) {
     int w = atoi(argv[1]), h = atoi(argv[2]);
@@ -56,12 +58,13 @@ def run_cuda_gpu(cuda_text, code, px_scale=None, workdir=None):
         src = Path(tmp) / "prog.cu"
         src.write_text("#include <stdio.h>\n#include <stdlib.h>\n" + cuda_text + "\n" + HOST_MAIN)
         exe = Path(tmp) / "prog"
-        r = subprocess.run(["nvcc", "-O2", "--fmad=false", "-o", str(exe), str(src)], capture_output=True, text=True)
+        r = subprocess.run(["nvcc", "-O2", "--fmad=false", "-o", str(exe), str(src)], capture_output=True, text=True,
+                           timeout=TIMEOUT)
         if r.returncode:
             raise RuntimeError("CUDA source did not compile with nvcc:\n" + r.stderr[-4000:])
         data = np.ascontiguousarray(code.transpose(1, 2, 0), dtype=np.float32).tobytes()
         args = [str(exe), str(w), str(h)] + ([] if px_scale is None else [scale_arg(px_scale)])
-        r = subprocess.run(args, input=data, capture_output=True)
+        r = subprocess.run(args, input=data, capture_output=True, timeout=TIMEOUT)
         if r.returncode:
             raise RuntimeError(f"CUDA GPU harness failed ({r.returncode})")
         out = np.frombuffer(r.stdout, dtype=np.float32).reshape(h, w, 3)

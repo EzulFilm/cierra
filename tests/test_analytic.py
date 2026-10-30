@@ -169,7 +169,7 @@ def test_dctl_lint_sees_masks():
 
 
 def test_prompt_and_manifest():
-    assert "srgb_photo / linear_photo" in language_reference()
+    assert "srgb_photo / rec1886_photo / linear_photo" in language_reference()
     lim = manifest()["limits"]
     for k in ("spatial_passes", "parallel_branches", "mask_depth", "mask_calls", "value_depth", "number_digits",
               "point_gap"):

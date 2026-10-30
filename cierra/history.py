@@ -7,10 +7,13 @@ Layout of a history folder:
 """
 
 import json
+import re
 from pathlib import Path
 
 from .format import fcall, fgraph, fmask, fval, format_program, program_hash
 from .ops import OPS, OUTPUTS
+
+VERSION_FILE = re.compile(r"v\d{4,}_[0-9a-f]+\.cierra")  # what commit() writes; the log is not trusted
 
 
 def _fmt(v):
@@ -92,7 +95,10 @@ class History:
 
     def load(self, entry):
         from .checker import load
-        return load((self.dir / entry["file"]).read_text(encoding="utf-8"))
+        name = entry.get("file")
+        if not isinstance(name, str) or not VERSION_FILE.fullmatch(name):
+            raise ValueError(f"history entry names {name!r}, not a version file in {self.dir}")
+        return load((self.dir / name).read_text(encoding="utf-8"))
 
     def commit(self, prog, message, measurements=None, parent_prog=None):
         entries = self.entries()

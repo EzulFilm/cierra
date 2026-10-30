@@ -64,6 +64,7 @@
   "linear_rec2020": "scene-linear Rec.2020 (through the OpenColorIO studio config)",
   "linear_rec709": "scene-linear Rec.709 / sRGB primaries, D65",
   "panasonic_vlog": "Panasonic V-Log, V-Gamut (through the OpenColorIO studio config)",
+  "rec1886_photo": "display-referred Rec.709 video (gamma 2.4 display), code values clipped to 0..1 and decoded (photo_graph runs first)",
   "red_log3g10": "RED Log3G10, REDWideGamutRGB (through the OpenColorIO studio config)",
   "sony_slog3_sgamut3": "Sony S-Log3, S-Gamut3 (through the OpenColorIO studio config)",
   "sony_slog3_sgamut3cine": "Sony S-Log3, S-Gamut3.Cine (through the OpenColorIO studio config)",
@@ -2119,7 +2120,7 @@
     },
     "recovered_highlights": {
      "default": true,
-     "doc": "keep stops over display white where every channel is > 1 (only linear_photo input can exceed 1; srgb_photo is clipped)",
+     "doc": "keep stops over display white where every channel is > 1 (only linear_photo input can exceed 1; srgb_photo and rec1886_photo are clipped)",
      "keyframable": false,
      "kind": "bool",
      "required": false,

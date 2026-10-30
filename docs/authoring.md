@@ -13,7 +13,7 @@ cierra/examples.py; the full maths is in [spec.md](spec.md), the machine-readabl
 - Declare `requires depth` / `requires segments` before using depth() / segment() masks, and use only segment ids the host lists.
 - grain() always needs an integer seed.
 - Keep keyframes inside the clip (frames 0 .. length - 1).
-- photo_to_scene() goes first in photo_graph, once, outside parallel / layer; photo_graph runs only for photo input (srgb_photo, or linear_photo when highlights were recovered above display white).
+- photo_to_scene() goes first in photo_graph, once, outside parallel / layer; photo_graph runs only for photo input (srgb_photo, rec1886_photo, or linear_photo when highlights were recovered above display white).
 - Defaults are not always 'no change': vignette(), glow(), blur(), grain() do something with their defaults; give the values you mean.
 - mix (0..1, default 1) and layer opacity (0..1, default 1) can be keyframed; layer mode defaults to normal.
 - Small steps: wheel offsets of 0.005-0.02 cv, saturation 0.9-1.15, exposure within +-1 stop are typical.
@@ -302,7 +302,7 @@ program rejected:
 ```
 Operations:
   photo_to_scene()  [transform, pointwise] Display-referred photo (sRGB JPEG / PNG read as linear light) back to scene light through the inverse ACES 2.0 SDR sRGB output transform, so the program's ACES 2.0 output gives the photo's own placement back. Highlights roll off from knee_stops to max_stops over grey. Allowed only in photo_graph.
-    recovered_highlights: bool, default True. keep stops over display white where every channel is > 1 (only linear_photo input can exceed 1; srgb_photo is clipped)
+    recovered_highlights: bool, default True. keep stops over display white where every channel is > 1 (only linear_photo input can exceed 1; srgb_photo and rec1886_photo are clipped)
     knee_stops: num 1..10 [stops], default 4.5. roll-off start over 18 % grey
     max_stops: num 1.5..12 [stops], default 6.0. roll-off ceiling over 18 % grey
   exposure()  [primary, pointwise] Exposure: a linear-light gain (decode ACEScct, multiply by 2^stops, encode); above the toe it is the same as adding stops / 17.52, and it never lifts black below the toe.

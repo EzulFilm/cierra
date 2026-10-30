@@ -27,8 +27,12 @@ class DCTLError(ValueError):
 
 def one_line(text):
     """Text for a // comment: control characters and line breaks become spaces. The checker already refuses them in
-    strings; this also holds for programs built in code."""
-    return " ".join(CONTROL.sub(" ", str(text)).split())
+    strings; this also holds for programs built in code. A backslash would splice the next generated line into the
+    comment, and so would the trigraph ??/ (gcc -std=c99 reads trigraphs): "\\" becomes "/" and "??" "? ?"."""
+    s = " ".join(CONTROL.sub(" ", str(text)).split()).replace("\\", "/")
+    while "??" in s:
+        s = s.replace("??", "? ?")
+    return s
 
 
 def f(v):

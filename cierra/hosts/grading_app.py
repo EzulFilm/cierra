@@ -314,7 +314,8 @@ def export_bundle(prog, folder, stem, parent=None, frames=None):
 # DCTL per node (SetLUT), a CDL per node (SetCDL) and node enable. It cannot add nodes, and it cannot read or set
 # wheel values, curves, windows or qualifier ranges.
 
-ABS_PATH = re.compile(r"(?:[A-Za-z]:[\\/]|/)[A-Za-z0-9_.\\/ -]{0,230}")
+# a drive or POSIX path, never UNC (//server/share, \\server\share): opening one sends Windows credentials
+ABS_PATH = re.compile(r"(?:[A-Za-z]:[\\/]|/(?![\\/]))[A-Za-z0-9_.\\/ -]{0,230}")
 LUT_SIZES = (17, 33, 65)
 SPATIAL_TOOLS = ("blur", "sharpen", "window", "noise", "glow", "halation", "grain", "vignette", "mist", "tracker",
                  "depth", "mask", "lens", "defocus", "relight", "face", "warp", "aperture")

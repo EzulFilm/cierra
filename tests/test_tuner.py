@@ -106,3 +106,35 @@ def test_tuner_never_moves_what_no_note_measures():
     summer, _ = tune(load("cierra 0.1\n"), "warmer, slightly brighter, less colour, more contrast, "
                      "keep the highlights soft", frame("pens"))
     assert summer.nodes["brighter"].call.args.get("stops", 0.0) >= 0
+
+
+def test_bound_lets_a_look_keep_its_own_values_but_not_go_further():
+    """A vivid look with saturation 1.8, beyond the cap (1.4): a loop that starts from such a look may
+    keep or soften it, not push it further, and a value the look does not have is capped as usual."""
+    from cierra import load
+    from cierra.tuner import bound
+    look = load("cierra 0.1\nnode vivid = saturation(amount: 1.8)\ngraph vivid\n")
+
+    def reply(sat):
+        return load(f"cierra 0.1\nnode vivid = saturation(amount: {sat})\n"
+                    "node tint = wheels(gamma: [0.1, 0, -0.1])\ngraph vivid -> tint\n")
+
+    def sat(p):
+        return p.nodes["vivid"].call.args["amount"]
+    kept, _ = bound(reply(1.8), start=look)
+    softer, _ = bound(reply(1.6), start=look)
+    further, moved = bound(reply(1.95), start=look)
+    assert (sat(kept), sat(softer), sat(further)) == (1.8, 1.6, 1.8)
+    assert further.nodes["tint"].call.args["gamma"] == (0.05, 0.0, -0.05)
+    assert any(m.startswith("vivid.amount: 1.95 -> 1.8") for m in moved), moved
+    assert sat(bound(reply(1.8))[0]) == 1.4  # from neutral, the cap holds
+
+
+def test_bound_keeps_a_curve_monotone_after_restoring_a_looks_values():
+    """A look's curve point beyond the cap is restored; its neighbour from the reply must not then sit below it."""
+    from cierra import load
+    from cierra.tuner import bound
+    look = load("cierra 0.1\nnode c = curve(points: [[0.3, 0.6], [0.4, 0.7]])\ngraph c\n")
+    reply = load("cierra 0.1\nnode c = curve(points: [[0.3, 0.6], [0.4, 0.45]])\ngraph c\n")
+    ys = [float(r[1]) for r in bound(reply, start=look)[0].nodes["c"].call.args["points"]]
+    assert ys == sorted(ys), ys

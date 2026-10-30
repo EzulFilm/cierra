@@ -175,3 +175,48 @@ def test_import_lut_command(tmp_path, capsys):
     (tmp_path / "bad.cube").write_text("LUT_1D_SIZE 2\n0 0 0\n1 1 1\n")
     assert main(["import-lut", str(tmp_path / "bad.cube"), str(tmp_path / "x.cierra")]) == 1
     assert "1D LUT" in capsys.readouterr().err
+
+
+DISPLAY_GRADE = ("cierra 0.1\ninput {inp}\noutput display_encode(eotf: {eotf})\n\n"
+                 "node warm = cdl(slope: [1.08, 1.0, 0.92], offset: [0.01, 0.0, -0.01], power: [1.0, 1.0, 1.0])\n"
+                 "node calm = saturation(amount: 0.85)\ngraph warm -> calm\n")
+
+
+@pytest.mark.parametrize("domain, inp, eotf", [("rec709_display", "rec1886_photo", "gamma24"),
+                                                ("srgb_display", "srgb_photo", "srgb")])
+def test_fit_a_display_referred_lut(domain, inp, eotf):
+    """A Rec.709 video LUT (display codes in and out, no tone scale, clipped at display white like a real one) is
+    fitted back as a program with the matching photo input and display_encode output.
+
+    Limits: measured 2026-10-29 (33-point): lattice 0.77-0.80 / 3.1-3.2 / 6.3, a pseudo-random picture
+    0.33-0.37 / 0.67-0.69 / 1.28-1.34, with about a quarter of margin. The lattice is worse than on a scene-referred
+    LUT because display_encode soft-compresses saturated colours above 0.9 and a display LUT clips them: the source
+    program itself measures 2.4-2.6 mean on the lattice against its own clipped LUT."""
+    from cierra.engine import grade_working
+    from cierra.fit_lut import DOMAINS, _nodes
+    src = load(DISPLAY_GRADE.format(inp=inp, eotf=eotf))
+    to_w, from_w = DOMAINS[domain]
+    size = 33
+    codes = _nodes(size, np.zeros(3), np.ones(3)).reshape(3, -1)
+    graded = grade_working(to_w(codes).reshape(3, -1, 1), src, px_scale=1.0).reshape(3, -1)
+    lut = from_w(graded).reshape(3, size, size, size)
+    rng = np.random.default_rng(1)
+    picture = rng.uniform(0.05, 0.9, (3, 64, 64)) * 0.3 + rng.uniform(0.1, 0.8, (1, 64, 64)) * 0.7
+    fitted, rep = fit_lut(lut, input=domain, frames=[picture])
+    assert (fitted.input, fitted.output.name, fitted.output.args.get("eotf", "srgb")) == (inp, "display_encode", eotf)
+    _clean(fitted, 8)
+    _within(rep, (1.0, 4.0, 8.0), (0.45, 0.9, 1.7))
+
+
+def test_identity_display_lut_fits_to_nothing():
+    lut = __import__("cierra.fit_lut", fromlist=["_nodes"])._nodes(9, np.zeros(3), np.ones(3))
+    fitted, rep = fit_lut(lut, input="rec709_display")
+    assert rep["lattice"]["mean"] < 0.3, rep
+
+
+def test_rec1886_photo_input_decodes_with_gamma_2_4():
+    grey = np.full((3, 1, 1), 0.5)
+    code, display_referred = C.input_to_working(grey, "rec1886_photo")
+    assert display_referred
+    assert np.allclose(C.from_working(code), 0.5 ** 2.4)
+    assert np.allclose(C.display_encode(code, "gamma24"), 0.5)

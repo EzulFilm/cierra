@@ -93,8 +93,7 @@ input and ACES 2.0 output transforms stay on the CPU (OpenColorIO), split across
 | whole render | 14.9 s | 7.4 s | 0.7 s |
 | the grade alone | about 12 s | | 0.2 s |
 
-Measure your own with `python tools/gpu_bench.py program.cierra`. CuPy brings NVIDIA's CUDA runtime libraries from
-PyPI, under NVIDIA's licence; none of it ships with Cierra.
+CuPy brings NVIDIA's CUDA runtime libraries from PyPI, under NVIDIA's licence; none of it ships with Cierra.
 
 ## From camera RAW to a movie
 

@@ -10,6 +10,8 @@ from cierra.tuner import CAPS, tune
 from conftest import ROOT, frame
 
 CASES = json.loads((ROOT / "tests" / "data" / "heldout_freeform.json").read_text())["cases"]
+# set B: 40 more, written blind (2026-10-29) by an author who had not read the prompt, its examples or the tuner
+CASES += json.loads((ROOT / "tests" / "data" / "heldout_freeform_b.json").read_text())["cases"]
 
 
 def test_freeform_notes_are_outside_the_check_vocabulary():
@@ -20,7 +22,8 @@ def test_freeform_notes_are_outside_the_check_vocabulary():
 def test_freeform_checks_are_fully_measured():
     for c in CASES:
         parts = [p.strip() for p in c["checks"].split(",")]
-        assert unmeasured(c["checks"]) == [] and len(probes_for(c["checks"])) == len(parts), c["id"]
+        # every phrase measured on its own ("warmer faces", "keep the highlights soft" make two probes each)
+        assert unmeasured(c["checks"]) == [] and all(probes_for(p) for p in parts), c["id"]
 
 
 def test_translate_keeps_only_check_phrases():

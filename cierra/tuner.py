@@ -150,10 +150,58 @@ def _repair(prog, knobs):
     return moved
 
 
-def _set(prog, knob, x):
+def bound(prog, start=None):
+    """Return (a copy of prog with every tunable value inside the tuner's bounds, what moved). The loop applies it
+    to a model's program before measuring it: in testing a 7B's wheels(gamma: [0.1, 0, -0.1]) met every check and
+    turned a blue wall red. start: the program the loop began from (a look). A value the look itself holds beyond
+    the bounds (a vivid look's saturation 1.8) may stay anywhere between the bound and the look's value, not further
+    out: the loop can soften a look but not push it past where it began."""
+    prog = copy.deepcopy(prog)
+    knobs = _knobs(prog)
+    before = {k: _get(prog, k) for k in knobs}
+    _repair(prog, knobs)
+    own = {k: _get(start, k) for k in knobs if start is not None and _same_knob(prog, start, k)}
+    moved = []
+    for k in knobs:
+        r, b = before[k], _get(prog, k)
+        if k in own:
+            s = own[k]
+            _put(prog, k, round(float(min(max(r, min(b, s)), max(b, s))), 4))
+    for nid in {k[0] for k in own}:  # a restored value can sit above its neighbour: keep diagonal curves monotone
+        call = prog.nodes[nid].call
+        if call.name in DIAGONAL_OPS:
+            run, fixed = -1e9, []
+            for row in call.args["points"]:
+                run = max(run, float(row[1]))
+                fixed.append((row[0], run, *row[2:]))
+            call.args["points"] = tuple(fixed)
+    for k in knobs:
+        if abs(_get(prog, k) - before[k]) > 1e-4:
+            moved.append(f"{k[0]}.{k[1]}{'' if k[2] is None else f'[{k[2]}]'}: {before[k]:g} -> {_get(prog, k):g}")
+    return prog, moved
+
+
+def _same_knob(prog, other, knob):
+    """Does `other` have this value at the same place (node id, op, parameter, index; points at the same input)?"""
     nid, key, i, _, _ = knob
+    a, b = prog.nodes[nid].call, getattr(other.nodes.get(nid), "call", None)
+    if b is None or a.name != b.name or key not in b.args or isinstance(b.args[key], A.Keys):
+        return False
+    if i is None:
+        return True
+    va, vb = a.args[key], b.args[key]
+    if i >= len(vb):
+        return False
+    return not isinstance(va[0], tuple) or (isinstance(vb[i], tuple) and float(va[i][0]) == float(vb[i][0]))
+
+
+def _set(prog, knob, x):
     lo, hi = _limits(prog, knob)
-    x = round(float(min(max(x, lo), hi)), 4)  # readable values; 1e-4 is below every tolerance
+    _put(prog, knob, round(float(min(max(x, lo), hi)), 4))  # readable values; 1e-4 is below every tolerance
+
+
+def _put(prog, knob, x):
+    nid, key, i, _, _ = knob
     args = prog.nodes[nid].call.args
     v = args[key]
     if i is None:
@@ -263,8 +311,9 @@ def tune(prog, notes, image, input="linear_rec709", width=240, max_evals=800, pe
             step /= 2
     tuned = load(format_program(best))  # re-checked: every value is in range by construction
     from .qc import damage
-    dmg = damage(render_fn(ungraded(tuned)), render_fn(tuned))["flags"]  # meeting the notes is not enough
-    info.update({"damage": dmg, "needs_human": bool(dmg)})
+    qc = damage(render_fn(ungraded(tuned)), render_fn(tuned))  # meeting the notes is not enough
+    dmg = qc["flags"]
+    info.update({"damage": dmg, "needs_human": bool(dmg), "watch": qc["watch"]})
     info.update({"deficits": {k: round(v, 3) for k, v in best_d.items()}, "cost": round(best_cost, 4),
                  "final": format_program(tuned)})
     if explain:

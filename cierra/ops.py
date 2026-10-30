@@ -78,7 +78,7 @@ _op("photo_to_scene", "transform",
     "SDR sRGB output transform, so the program's ACES 2.0 output gives the photo's own placement back. Highlights "
     "roll off from knee_stops to max_stops over grey. Allowed only in photo_graph.",
     {"recovered_highlights": P("bool", default=True, doc="keep stops over display white where every channel is > 1 "
-                               "(only linear_photo input can exceed 1; srgb_photo is clipped)"),
+                               "(only linear_photo input can exceed 1; srgb_photo and rec1886_photo are clipped)"),
      "knee_stops": P("num", 1.0, 10.0, 4.5, "stops", "roll-off start over 18 % grey"),
      "max_stops": P("num", 1.5, 12.0, 6.0, "stops", "roll-off ceiling over 18 % grey")},
     dctl=False, photo_only=True)
@@ -321,6 +321,8 @@ INPUTS = {
     "srgb_photo": "display-referred sRGB photo, code values clipped to 0..1 and decoded (photo_graph runs first)",
     "linear_photo": "display-referred photo as display-linear Rec.709 floats, may exceed 1 where a highlight-recovery "
                     "stage restored them (photo_graph runs first)",
+    "rec1886_photo": "display-referred Rec.709 video (gamma 2.4 display), code values clipped to 0..1 and decoded "
+                     "(photo_graph runs first)",
     "arri_logc3": "ARRI LogC3, EI 800, ARRI Wide Gamut 3 (through the OpenColorIO studio config)",
     "arri_logc4": "ARRI LogC4, ARRI Wide Gamut 4 (through the OpenColorIO studio config)",
     "sony_slog3_sgamut3": "Sony S-Log3, S-Gamut3 (through the OpenColorIO studio config)",

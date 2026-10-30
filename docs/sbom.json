@@ -202,7 +202,7 @@
    "name": "tifffile",
    "version": "2026.10.15",
    "licence": "BSD-3-Clause",
-   "role": "dev"
+   "role": "images"
   },
   {
    "name": "truststore",

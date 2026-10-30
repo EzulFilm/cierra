@@ -134,7 +134,7 @@ GUIDANCE = [
     "grain() always needs an integer seed.",
     "Keep keyframes inside the clip (frames 0 .. length - 1).",
     "photo_to_scene() goes first in photo_graph, once, outside parallel / layer; photo_graph runs only for photo"
-    " input (srgb_photo, or linear_photo when highlights were recovered above display white).",
+    " input (srgb_photo, rec1886_photo, or linear_photo when highlights were recovered above display white).",
     "Defaults are not always 'no change': vignette(), glow(), blur(), grain() do something with their defaults;"
     " give the values you mean.",
     "mix (0..1, default 1) and layer opacity (0..1, default 1) can be keyframed; layer mode defaults to normal.",

@@ -14,7 +14,7 @@ from .targets import blurred
 from .walk import carried_keys, mask_calls, same
 
 AUX = ("depth", "segments")
-PHOTO_INPUTS = ("srgb_photo", "linear_photo")  # display-referred inputs: photo_graph runs for these
+PHOTO_INPUTS = ("srgb_photo", "rec1886_photo", "linear_photo")  # display-referred inputs: photo_graph runs for these
 
 
 class _Ctx:

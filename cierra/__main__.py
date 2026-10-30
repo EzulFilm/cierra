@@ -10,7 +10,8 @@
     python -m cierra fit    in.npy reference.png out.cierra [--input KIND]   a reference look as curve / balance / colour
     python -m cierra import-lut grade.cube out.cierra [--input acescct]   a 3D LUT back as a readable program
     python -m cierra loop   "notes" in.npy history_dir [--reference ref.png] [--iters 4]
-Images: .npy (3, H, W) float, or 8/16-bit PNG / TIFF read as display sRGB (input srgb_photo).
+Images: .npy (3, H, W) float, or PNG / TIFF (8, 16-bit or float) read as display codes: the program's own input
+when it takes display codes (srgb_photo, rec1886_photo), else srgb_photo; --input overrides.
 """
 
 import argparse
@@ -31,9 +32,33 @@ def read_image(path):
     p = Path(path)
     if p.suffix == ".npy":
         return np.load(p).astype(np.float64)
+    if p.suffix.lower() in (".tif", ".tiff"):  # Pillow cannot open 16-bit RGB TIFFs; float TIFFs keep their values
+        import tifffile
+        a = tifffile.imread(p, key=0)  # the first page of a multi-page TIFF
+        if a.ndim not in (2, 3):
+            raise ValueError(f"{p}: a TIFF image of shape {a.shape} (expected H x W, with up to 4 channels)")
+        if a.ndim == 3 and a.shape[0] in (2, 3, 4) and a.shape[-1] not in (1, 2, 3, 4):  # planar (C, H, W)
+            a = a.transpose(1, 2, 0)
+        if a.ndim == 3 and a.shape[-1] < 3:  # grey (+ alpha)
+            a = a[..., 0]
+        if a.ndim == 2:
+            a = np.repeat(a[..., None], 3, axis=-1)
+        a = a[..., :3]
+        scale = np.iinfo(a.dtype).max if np.issubdtype(a.dtype, np.integer) else 1.0
+        return (a.astype(np.float64) / scale).transpose(2, 0, 1)
     from PIL import Image
     a = np.asarray(Image.open(p).convert("RGB"), dtype=np.float64) / 255.0
     return a.transpose(2, 0, 1)
+
+
+def _int_in(lo, hi):
+    """argparse type: an integer in lo..hi."""
+    def parse(s):
+        v = int(s)
+        if not lo <= v <= hi:
+            raise argparse.ArgumentTypeError(f"{v} outside {lo}..{hi}")
+        return v
+    return parse
 
 
 def write_png(path, disp):
@@ -43,6 +68,9 @@ def write_png(path, disp):
 
 
 def main(argv=None):
+    from .fit_lut import MAX_CUBE
+    from .ops import LIMITS
+    FRAME = _int_in(0, LIMITS["max_frame"])
     ap = argparse.ArgumentParser(prog="cierra")
     ap.add_argument("--device", choices=("cpu", "gpu"),
                     help="where the engine runs (render, fit, loop, tuner): default CIERRA_DEVICE or cpu")
@@ -51,18 +79,18 @@ def main(argv=None):
     c.add_argument("program")
     r = sub.add_parser("render")
     r.add_argument("program"), r.add_argument("image"), r.add_argument("out")
-    r.add_argument("--input"), r.add_argument("--frame", type=int, default=0)
+    r.add_argument("--input"), r.add_argument("--frame", type=FRAME, default=0)
     d = sub.add_parser("dctl")
     d.add_argument("program"), d.add_argument("out_dir")
-    d.add_argument("--frame", type=int, default=0), d.add_argument("--split", action="store_true")
+    d.add_argument("--frame", type=FRAME, default=0), d.add_argument("--split", action="store_true")
     w = sub.add_parser("wgsl")
     w.add_argument("program"), w.add_argument("out_dir")
-    w.add_argument("--frame", type=int, default=0), w.add_argument("--split", action="store_true")
+    w.add_argument("--frame", type=FRAME, default=0), w.add_argument("--split", action="store_true")
     cu = sub.add_parser("cuda")
     cu.add_argument("program"), cu.add_argument("out_dir")
-    cu.add_argument("--frame", type=int, default=0), cu.add_argument("--split", action="store_true")
+    cu.add_argument("--frame", type=FRAME, default=0), cu.add_argument("--split", action="store_true")
     lu = sub.add_parser("lut")
-    lu.add_argument("program"), lu.add_argument("out_dir"), lu.add_argument("--size", type=int, default=65)
+    lu.add_argument("program"), lu.add_argument("out_dir"), lu.add_argument("--size", type=_int_in(2, MAX_CUBE), default=65)
     cd = sub.add_parser("cdl")
     cd.add_argument("program"), cd.add_argument("out_dir")
     fi = sub.add_parser("fit")
@@ -70,11 +98,11 @@ def main(argv=None):
     fi.add_argument("--input", default="linear_rec709")
     il = sub.add_parser("import-lut")
     il.add_argument("cube"), il.add_argument("out")
-    il.add_argument("--input", default="acescct", help="the LUT's domain: acescct (default), acescg, linear_rec709")
+    il.add_argument("--input", default="acescct", help="the LUT's domain: acescct (default), acescg, linear_rec709, srgb_display, rec709_display (gamma 2.4)")
     lo = sub.add_parser("loop")
     lo.add_argument("notes"), lo.add_argument("image"), lo.add_argument("history")
     lo.add_argument("--input", default="linear_rec709"), lo.add_argument("--reference")
-    lo.add_argument("--iters", type=int, default=4), lo.add_argument("--start")
+    lo.add_argument("--iters", type=_int_in(1, 50), default=4), lo.add_argument("--start")
     lo.add_argument("--driver", choices=("auto", "openweight", "anthropic", "rules"), help="default: CIERRA_DRIVER or auto")
     a = ap.parse_args(argv)
     if a.device:
@@ -100,7 +128,10 @@ def _run(a):
         from .engine import render
         prog = load_file(a.program)
         img = read_image(a.image)
-        kind = a.input or (prog.input if a.image.endswith(".npy") else "srgb_photo")
+        # a .npy keeps the program's input; PNG / TIFF are display codes, decoded as the program says when it takes
+        # display codes (rec1886_photo from a display LUT fit), else as sRGB
+        own = a.image.endswith(".npy") or prog.input in ("srgb_photo", "rec1886_photo")
+        kind = a.input or (prog.input if own else "srgb_photo")
         write_png(a.out, render(prog, img, frame=a.frame, input=kind))
     elif a.cmd in ("dctl", "wgsl", "cuda"):
         from .compile.cuda import CUDAError, compile_cuda

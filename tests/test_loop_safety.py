@@ -20,7 +20,7 @@ CLEAN = "```cierra\ncierra 0.1\nnode brighter = exposure(stops: 0.3)\ngraph brig
 def test_a_damaged_version_is_recorded_never_finished_and_loses_to_a_clean_one(tmp_path):
     img = small(frame("pens"), 4)
     best, recs = grade_loop("brighter", img, ScriptedProvider([MILKY, CLEAN]), History(tmp_path / "h"),
-                            max_iters=3, log=lambda m: None, revise=False)
+                            max_iters=3, log=lambda m: None, revise=False, bounded=False)
     assert recs[0]["accepted"] and recs[0]["needs_human"] and any("milky" in d for d in recs[0]["damage"])
     assert len(recs) == 2  # "brighter" was met in round 1 but the version was damaged: the loop went on
     assert not recs[1]["needs_human"] and "milk" not in best.nodes and loop_status(recs) == "done"
@@ -29,7 +29,7 @@ def test_a_damaged_version_is_recorded_never_finished_and_loses_to_a_clean_one(t
 def test_only_damaged_versions_come_back_as_a_review_candidate(tmp_path):
     img = small(frame("pens"), 4)
     best, recs = grade_loop("brighter", img, ScriptedProvider([MILKY, MILKY]), History(tmp_path / "h"),
-                            max_iters=2, log=lambda m: None, revise=False)
+                            max_iters=2, log=lambda m: None, revise=False, bounded=False)
     assert best is not None and "milk" in best.nodes and loop_status(recs) == "needs_human"
 
 
@@ -75,3 +75,20 @@ def test_budget_cap_holds_before_a_re_ask(tmp_path):
     _, recs = grade_loop("warmer", small(frame("chart"), 4), p, History(tmp_path / "h"), max_iters=2,
                          log=lambda m: None, budget_usd=0.5, revise=True)
     assert recs[1].get("reasked") and len(p.calls) == 2
+
+
+RED_WALL = ("```cierra\ncierra 0.1\nnode cool = wheels(gamma: [0.1, 0, -0.1])\ngraph cool\n```\n"
+            "message: cooler\n")
+
+
+def test_loop_pulls_a_models_values_inside_the_bounds_before_measuring(tmp_path):
+    """The grammar-off 7B run: wheels(gamma: [0.1, 0, -0.1]) met every check and turned a blue wall red. The loop
+    measures the version capped at the tuner's bounds (0.05 around neutral) and says so in the record."""
+    img = small(frame("pens"), 4)
+    best, recs = grade_loop("cooler", img, ScriptedProvider([RED_WALL]), History(tmp_path / "h"), max_iters=1,
+                            log=lambda m: None, revise=False)
+    assert recs[0]["accepted"] and recs[0]["capped"]
+    assert best.nodes["cool"].call.args["gamma"] == (0.05, 0.0, -0.05)
+    _, raw = grade_loop("cooler", img, ScriptedProvider([RED_WALL]), History(tmp_path / "h2"), max_iters=1,
+                        log=lambda m: None, revise=False, bounded=False)
+    assert raw[0]["capped"] == []

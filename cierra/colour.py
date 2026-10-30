@@ -232,6 +232,8 @@ def input_to_working(img, kind):
         return m.array(img, dtype=m.float64), False
     if kind == "srgb_photo":
         return to_working(srgb_decode(m.clip(img, 0, 1))), True
+    if kind == "rec1886_photo":
+        return to_working(m.power(m.clip(img, 0, 1), 2.4)), True
     if kind == "linear_photo":
         return to_working(m.maximum(img, 0.0)), True
     if kind in CAMERA_INPUTS:

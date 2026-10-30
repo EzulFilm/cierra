@@ -25,7 +25,10 @@ MODIFIERS = ("mask", "mix", "label", "off")
 RESERVED = ("pass", "parallel", "layer", "keys", "true", "false", "not", "and", "or")
 # C0 / C1 controls and Unicode line / paragraph separators: a string is one line of printable text, so a name or label
 # can never start a new line in generated DCTL, WGSL or LUT files.
-CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f  ]")
+# also bidi embeddings, overrides and isolates (they reorder what a reader sees in a generated comment: "Trojan
+# Source") and Unicode noncharacters (invalid in the CLF / CDL XML)
+CONTROL = re.compile("[\x00-\x1f\x7f-\x9f\u2028-\u2029\u202a-\u202e\u2066-\u2069\ufdd0-\ufdef"
+                     + "".join(chr(p * 0x10000 + 0xFFFE) + chr(p * 0x10000 + 0xFFFF) for p in range(17)) + "]")
 
 
 class Tok:

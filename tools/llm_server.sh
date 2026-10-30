@@ -18,7 +18,8 @@ LOG=$ROOT/llm/server.log
 case "$1" in
   start)
     if [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; then echo "running (pid $(cat "$PIDF"))"; exit 0; fi
-    nohup "$BIN" -m "$MODEL" --host 127.0.0.1 --port 8090 -c 16384 -t ${CIERRA_LLM_THREADS:-8} -ngl 0 \
+    # the build's RUNPATH names the folder it was built in; the libraries next to the binary work from any folder
+    LD_LIBRARY_PATH=$(dirname "$BIN")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} nohup "$BIN" -m "$MODEL" --host 127.0.0.1 --port 8090 -c 16384 -t ${CIERRA_LLM_THREADS:-8} -ngl 0 \
         --alias "$ALIAS" > "$LOG" 2>&1 &
     echo $! > "$PIDF"
     for i in $(seq 1 300); do

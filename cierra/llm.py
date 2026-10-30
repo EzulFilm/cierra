@@ -91,7 +91,7 @@ def language_reference():
         "    mix 0..1                                  label \"...\"     off",
         "  graph a -> b -> parallel(c, d) -> layer(e, f, mode: " + "|".join(BLEND_MODES) + ", opacity: 0.5)",
         "  graph layer(pass, glow, mode: screen)       pass = the unchanged input (a layer bottom, a branch)",
-        "  photo_graph <...>                           runs first for srgb_photo / linear_photo (photo_to_scene() first)",
+        "  photo_graph <...>                           runs first for srgb_photo / rec1886_photo / linear_photo (photo_to_scene() first)",
         "  (no graph line = identity: an output-only program)",
         "",
         "Working values are ACEScct code values (cv): 18 % grey = 0.4136, 1 stop = 0.0571 cv, black ~0.073.",
@@ -245,6 +245,21 @@ def usage_record(model, usage, seconds):
 
 # Deterministic offline driver: words in the notes -> fixed, gentle nodes. Not clever, but always available, free,
 # and the same answer every time (tests, CI, no key, budget reached).
+MAX_REPLY_BYTES = 4 * 1024 * 1024  # a chat reply is a few kB; a server that streams more is not read to the end
+
+
+def _check_llm_url(url):
+    """https anywhere, plain http only to this machine (a local llama.cpp server): no file:// or other schemes, and no
+    notes or frames sent unencrypted over a network."""
+    from urllib.parse import urlsplit
+    u = urlsplit(url)
+    if u.scheme == "https" and u.hostname:
+        return
+    if u.scheme == "http" and u.hostname in ("localhost", "127.0.0.1", "::1"):
+        return
+    raise ValueError(f"CIERRA_LLM_URL {url!r}: use https, or http to localhost / 127.0.0.1 / ::1")
+
+
 RULES = [
     (r"\b(warm|warmer|healthier|richer)\s+(faces?|skin)", "skin_warmth",
      "saturation(amount: 1.08)\n  mask skin(width: 30)"),
@@ -322,6 +337,7 @@ class OpenWeightProvider:
         self.url = (url or os.environ.get("CIERRA_LLM_URL") or "").rstrip("/")
         if not self.url:
             raise ValueError("the open-weight driver needs CIERRA_LLM_URL (e.g. http://localhost:8000/v1)")
+        _check_llm_url(self.url)
         self.model = model or os.environ.get("CIERRA_MODEL") or "Qwen/Qwen2.5-7B-Instruct"
         self.prompt_profile = os.environ.get("CIERRA_PROMPT") or "short"  # small models: the short reference
         self.timeout = float(timeout or os.environ.get("CIERRA_LLM_TIMEOUT") or 300.0)  # seconds; CPU runs are slow
@@ -343,7 +359,10 @@ class OpenWeightProvider:
                                      headers={"Content-Type": "application/json"})
         t0 = time.monotonic()
         with urllib.request.urlopen(req, timeout=self.timeout) as r:
-            data = json.loads(r.read())
+            body = r.read(MAX_REPLY_BYTES + 1)
+        if len(body) > MAX_REPLY_BYTES:
+            raise ValueError(f"the model server replied with more than {MAX_REPLY_BYTES} bytes")
+        data = json.loads(body)
         seconds = time.monotonic() - t0
         u = data.get("usage") or {}
         self.last_usage = {"model": data.get("model") or self.model, "input_tokens": int(u.get("prompt_tokens", 0)),
@@ -465,7 +484,8 @@ def loop_status(records):
 
 
 def grade_loop(notes, image, provider, history, input="linear_rec709", reference=None, start=None, max_iters=4,
-               target_de=1.0, width=480, log=print, host=None, aux=None, budget_usd=None, revise=None):
+               target_de=1.0, width=480, log=print, host=None, aux=None, budget_usd=None, revise=None,
+               bounded=None):
     """Run the loop. image: (3, H, W) in `input`; reference: optional display image (same framing) of the look to
     reach; host: what the host provides, told to the model and used for linting (frames = clip length, planes,
     segment_ids with their meanings in segment_names, targets such as ["dctl", "lut"]); aux: the planes themselves
@@ -483,12 +503,19 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
     against the same program without its graph; flags go into the record ("damage", "needs_human") and into the
     next round's feedback, a damaged version never ends the loop as "every note met", and an undamaged version is
     always preferred as the best. When every version is damaged the best one is still returned, as a review candidate:
-    loop_status(records) says "needs_human"."""
+    loop_status(records) says "needs_human".
+
+    Bounds (bounded, default on; CIERRA_BOUND=0 turns it off): every accepted reply has its values pulled inside the
+    tuner's bounds (cierra.tuner.bound: caps around neutral, non-decreasing curves, rule nodes on their own side)
+    before it is measured; what moved goes into the record ("capped") and the next round's feedback."""
     from .format import program_hash
     from .notes import attribute, failing, measure_notes, probes_for, regions, report, revision_text, unmeasured
     from .qc import damage
+    from .tuner import bound
     if revise is None:
         revise = os.environ.get("CIERRA_REVISE", "1") != "0"
+    if bounded is None:
+        bounded = os.environ.get("CIERRA_BOUND", "1") != "0"
     host = {"input": input, **(host or {})}
     budget = float(budget_usd if budget_usd is not None else os.environ.get("CIERRA_BUDGET_USD", DEFAULT_BUDGET_USD))
     spent = 0.0
@@ -500,7 +527,13 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
     def render_fn(prog):
         return render(prog, img, input=input, px_scale=img.shape[-1] / prog.reference_width, aux=aux)
 
+    def check(src):
+        prog, warnings = _check_reply(src)
+        prog, capped = bound(prog, start=begin) if bounded else (prog, [])
+        return prog, warnings, capped
+
     current = load(start) if isinstance(start, str) else (start or load(NEUTRAL.format(input=input)))
+    begin = current  # a look's own values beyond the bounds stay reachable (tuner.bound)
     if not C.measurable(current.output):
         raise ValueError("the loop measures on an SDR Rec.709 display: start from output aces2(display: srgb | "
                          "rec1886) and switch the output for the P3 / HDR deliverable afterwards")
@@ -545,7 +578,7 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
         spent += float(usage.get("cost_usd", 0.0))
         src, message = extract(reply)
         try:
-            prog, warnings = _check_reply(src)
+            prog, warnings, capped = check(src)
         except CierraError as e:
             errors = str(e)
             records.append({"iteration": it, "accepted": False, "errors": errors, "usage": usage})
@@ -572,7 +605,7 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
             reasked = True
             src, message = extract(reply)
             try:
-                prog, warnings = _check_reply(src)
+                prog, warnings, capped = check(src)
             except CierraError as e:
                 errors = str(e)
                 records.append({"iteration": it, "accepted": False, "errors": errors, "usage": usage, "reasked": True})
@@ -585,7 +618,8 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
             break
         warnings = warnings + lint(prog, host)
         out = render_fn(prog)
-        dmg = damage(render_fn(ungraded(prog)), out)["flags"]
+        qc = damage(render_fn(ungraded(prog)), out)
+        dmg = qc["flags"]
         m = analysis.measure(out, ref)
         entry = history.commit(prog, message, m, parent_prog=current)
         now_vals = measure_notes(probes, out, regs)
@@ -599,8 +633,10 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
         rec = {"iteration": it, "accepted": True, "hash": entry["hash"], "message": message, "measure": m,
                "note_checks": rows, "notes_met": f"{score}/{len(rows)}", "causes": causes, "reasked": reasked,
                "diff": entry["diff"], "warnings": warnings, "usage": usage, "spent_usd": round(spent, 5),
-               "damage": dmg, "needs_human": bool(dmg)}
+               "damage": dmg, "needs_human": bool(dmg), "watch": qc["watch"], "capped": capped}
         records.append(rec)
+        if capped:
+            log(f"iteration {it}: values pulled inside the bounds: " + "; ".join(capped))
         de = m.get("delta_e00_to_reference", {}).get("mean")
         log(f"iteration {it}: v{entry['id']} {entry['hash']} notes met {score}/{len(rows)}"
             + (f" dE00 mean {de}" if de is not None else ""))
@@ -625,6 +661,8 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
             feedback["checker_warnings"] = warnings
         if dmg:
             feedback["damage_fix_first"] = dmg
+        if capped:
+            feedback["values_capped_to_a_gentle_grade"] = capped
         if ref is not None:
             feedback["reference_stats"] = stats_fn(ref)
         if de is not None and de <= target_de and clean:

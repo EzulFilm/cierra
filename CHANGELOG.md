@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Display-referred LUTs import (`import-lut --input rec709_display` or `srgb_display`): Rec.709 video LUTs, display
+  codes in and out, come back as a program with a photo input and `display_encode` output (no tone scale). New input
+  `rec1886_photo`: display-referred Rec.709 video decoded with gamma 2.4.
+- TIFF input: 8-bit, 16-bit and float TIFFs load at full depth (tifffile, in the `images` extra).
+- The grading loop keeps a model's values inside the tuner's bounds before measuring (`CIERRA_BOUND=0` turns it off);
+  values it pulled in are recorded as "capped" and told to the model.
+
 - Key routing, as in the grading app's node graph (spec §6.1):
   - `key sky = graduated(...)`: a named mask, made again wherever it is used;
   - `key(face)` in a mask: node face's key, carried from where face ran (made on face's input, before its grade), so

@@ -23,7 +23,7 @@ Pipeline for one frame `f` of an image `I`:
 
 1. `W0 = input_to_working(I, kind)` — ACEScct code values in AP1, shape (3, H, W). `kind` is the program's `input`
    unless the host renders with another input kind (a look written for scene-linear footage applied to a photo).
-2. If `kind` is a photo kind (`srgb_photo` or `linear_photo`) and the program has a `photo_graph`:
+2. If `kind` is a photo kind (`srgb_photo`, `rec1886_photo` or `linear_photo`) and the program has a `photo_graph`:
    `W0 = photo_graph(W0)`. For any other kind the `photo_graph` does not run (the linter says so when the host tells
    it the input kind).
 3. `W1 = graph(W0)`; a program without a `graph` line uses the identity (an output-only program).
@@ -135,8 +135,9 @@ takes its own required seed), `requires` ⊆ {`depth`, `segments`}.
 
 **Inputs**: `linear_rec709` W = enc(max(M709→AP1·I, 0)); `aces2065_1` W = enc(max(MAP0→AP1·I, 0)); `acescg`
 W = enc(max(I, 0)); `acescct` W = I; `srgb_photo` W = enc(max(M709→AP1·sRGB⁻¹(clip(I, 0, 1)), 0)) (code values,
-so never over display white); `linear_photo` W = enc(max(M709→AP1·max(I, 0), 0)) with I display-linear Rec.709
-floats that may exceed 1 where a highlight-recovery stage restored them. For both photo kinds the program's
+so never over display white); `rec1886_photo` the same with clip(I, 0, 1)^2.4 (Rec.709 video on a gamma 2.4
+display); `linear_photo` W = enc(max(M709→AP1·max(I, 0), 0)) with I display-linear Rec.709
+floats that may exceed 1 where a highlight-recovery stage restored them. For every photo kind the program's
 `photo_graph` runs first. Camera inputs: W = the OpenColorIO ColorSpaceTransform from the studio config's colour space
 to "ACEScct" (`arri_logc3` "ARRI LogC3 (EI800)", `arri_logc4` "ARRI LogC4", `sony_slog3_sgamut3` "S-Log3 S-Gamut3",
 `sony_slog3_sgamut3cine` "S-Log3 S-Gamut3.Cine", `panasonic_vlog` "V-Log V-Gamut", `canon_log2` / `canon_log3`
@@ -227,7 +228,7 @@ Input stage (only in `photo_graph`):
 
 | op | parameters | maths |
 |---|---|---|
-| photo_to_scene | recovered_highlights (true), knee_stops 1..10 (4.5), max_stops 1.5..12 (6), knee_stops < max_stops at every integer frame (checker, exact: between consecutive keys of either value both are polynomials of degree ≤ 3 in the frame, so their difference is a cubic and is checked at the interval ends and at the integer frames next to its stationary points) | recovered_highlights only has an effect for `linear_photo` input (srgb_photo never exceeds 1); see note N1. L = max(Rec.709 lin, 0); o = max(max_c L, 1); D = sRGB(L/o); F = ACES2⁻¹(D); near white (w = smoothstep(0.70, 0.92, max D)·(1 − smoothstep(0.10, 0.30, sat D))) F blends to the photo's chromaticity at the luminance the inverse gives; with recovered_highlights F += log2(max(min_c L, 1))/17.52; the brightest channel rolls off from G + knee/17.52 to G + max/17.52 with tanh, all channels shifted equally |
+| photo_to_scene | recovered_highlights (true), knee_stops 1..10 (4.5), max_stops 1.5..12 (6), knee_stops < max_stops at every integer frame (checker, exact: between consecutive keys of either value both are polynomials of degree ≤ 3 in the frame, so their difference is a cubic and is checked at the interval ends and at the integer frames next to its stationary points) | recovered_highlights only has an effect for `linear_photo` input (srgb_photo and rec1886_photo never exceed 1); see note N1. L = max(Rec.709 lin, 0); o = max(max_c L, 1); D = sRGB(L/o); F = ACES2⁻¹(D); near white (w = smoothstep(0.70, 0.92, max D)·(1 − smoothstep(0.10, 0.30, sat D))) F blends to the photo's chromaticity at the luminance the inverse gives; with recovered_highlights F += log2(max(min_c L, 1))/17.52; the brightest channel rolls off from G + knee/17.52 to G + max/17.52 with tanh, all channels shifted equally |
 
 ## 6. Masks
 
