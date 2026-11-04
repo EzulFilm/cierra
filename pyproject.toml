@@ -5,7 +5,7 @@ description = "A colour-grading language: grades as small checked programs that 
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-authors = [{ name = "Ezul" }]
+authors = [{ name = "CIERRAEZUL LLC" }]
 keywords = ["colour grading", "color grading", "ACES", "DCTL", "LUT", "CLF", "ASC CDL", "WGSL", "LLM"]
 classifiers = [
     "Development Status :: 3 - Alpha",

@@ -83,3 +83,96 @@ def test_planar_grey_alpha_and_multi_page_tiffs(tmp_path):
     assert p.shape == (3, 6, 7) and np.allclose(p, 32768 / 65535)
     m = read_image(tmp_path / "m.tif")
     assert m.shape == (3, 6, 7) and np.allclose(m, 1.0)  # the first page
+
+
+@pytest.mark.parametrize("dtype,step", [(np.uint8, 1), (np.uint16, 256)])
+def test_video_range_tiff_maps_legal_black_and_white_to_0_and_1(dtype, step, tmp_path):
+    """Video (legal) range: code 16*2^(n-8) is 0 and 235*2^(n-8) is 1; sub-blacks and super-whites are kept outside
+    0..1, not clipped. Read as full range (the default) the same file gives the old values, black lifted."""
+    codes = np.array([0, 16, 126, 235, 255], dtype=np.int64) * step
+    if dtype == np.uint16:
+        codes[-1] = 65535
+    data = np.repeat(codes.astype(dtype)[None, :, None], 3, axis=2)
+    tifffile.imwrite(tmp_path / "v.tif", data, photometric="rgb")
+    video = read_image(tmp_path / "v.tif", "video")[0, 0]
+    assert video[1] == 0.0 and video[3] == 1.0
+    assert np.isclose(video[2], 110 / 219)
+    assert video[0] < 0 and video[4] > 1  # sub-black and super-white kept
+    full = read_image(tmp_path / "v.tif", "full")
+    assert np.array_equal(full, read_image(tmp_path / "v.tif"))
+    assert np.array_equal(full[0, 0], codes / np.iinfo(dtype).max)
+
+
+def test_video_range_png(tmp_path):
+    from PIL import Image
+    Image.fromarray(np.array([[[16] * 3, [235] * 3]], np.uint8)).save(tmp_path / "v.png")
+    assert np.array_equal(read_image(tmp_path / "v.png", "video")[:, 0], [[0, 1]] * 3)
+    assert np.allclose(read_image(tmp_path / "v.png")[:, 0], [[16 / 255, 235 / 255]] * 3)
+
+
+def test_video_range_refuses_float_images(tmp_path):
+    """A float file has no code scale to read 16..235 against: video range is refused, full range reads it as
+    before."""
+    from cierra.__main__ import ImageRangeError
+    v = np.full((4, 4, 3), 0.5, np.float32)
+    tifffile.imwrite(tmp_path / "f.tif", v, photometric="rgb")
+    np.save(tmp_path / "f.npy", v.transpose(2, 0, 1).astype(np.float64))
+    for name in ("f.tif", "f.npy"):
+        assert np.allclose(read_image(tmp_path / name, "full"), 0.5)
+        with pytest.raises(ImageRangeError, match="video"):
+            read_image(tmp_path / name, "video")
+
+
+def test_render_range_flag(tmp_path, capsys):
+    """--range video on the command line: legal black and white come back as 0 and 255 through an identity
+    program; on a float image it is one plain line on stderr and exit 1, no traceback."""
+    from PIL import Image
+
+    from cierra.__main__ import main
+    data = np.repeat(np.array([16, 235], np.uint8)[None, :, None], 3, axis=2)
+    tifffile.imwrite(tmp_path / "v.tif", data, photometric="rgb")
+    (tmp_path / "p.cierra").write_text("cierra 0.1\ninput srgb_photo\noutput display_encode(eotf: srgb)\n")
+    args = ["render", str(tmp_path / "p.cierra"), str(tmp_path / "v.tif"), str(tmp_path / "out.png")]
+    assert main(args + ["--range", "video"]) in (0, None)
+    out = np.asarray(Image.open(tmp_path / "out.png"), dtype=float)[0, :, 0]
+    assert abs(out[0]) <= 1 and abs(out[1] - 255) <= 1
+    tifffile.imwrite(tmp_path / "f.tif", np.full((2, 2, 3), 0.5, np.float32), photometric="rgb")
+    capsys.readouterr()
+    assert main(["render", str(tmp_path / "p.cierra"), str(tmp_path / "f.tif"), str(tmp_path / "o.png"),
+                 "--range", "video"]) == 1
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1 and "Traceback" not in err and "--range video" in err
+
+
+def _png16(path, data, colour_type):
+    """A 16-bit PNG written by hand (Pillow cannot write 16-bit colour); data (H, W[, C]) uint16."""
+    import struct
+    import zlib
+
+    def chunk(t, d):
+        return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d))
+    h, w = data.shape[:2]
+    raw = b"".join(b"\0" + row.astype(">u2").tobytes() for row in data)  # filter type 0 on every row
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 16, colour_type, 0, 0, 0))
+                     + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def test_16bit_grey_png_keeps_16_bits(tmp_path):
+    _png16(tmp_path / "g.png", np.array([[0, 32768, 65535]], np.uint16), 0)
+    a = read_image(tmp_path / "g.png")
+    assert a.shape == (3, 1, 3) and np.allclose(a[:, 0], [[0, 32768 / 65535, 1]] * 3)
+    assert np.isclose(read_image(tmp_path / "g.png", "video")[0, 0, 1], (32768 - 4096) / 56064)
+
+
+def test_16bit_colour_png_is_refused_not_cut_to_8_bits(tmp_path, capsys):
+    """Pillow reads 16-bit RGB PNGs as 8-bit: refused with one plain line (pointing at TIFF), never quantised."""
+    from cierra.__main__ import ImageInputError, main
+    _png16(tmp_path / "c.png", np.full((2, 2, 3), 32768, np.uint16), 2)
+    with pytest.raises(ImageInputError, match="16-bit TIFF"):
+        read_image(tmp_path / "c.png")
+    (tmp_path / "p.cierra").write_text("cierra 0.1\ninput srgb_photo\noutput display_encode(eotf: srgb)\n")
+    capsys.readouterr()
+    assert main(["render", str(tmp_path / "p.cierra"), str(tmp_path / "c.png"), str(tmp_path / "o.png")]) == 1
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1 and "Traceback" not in err
+

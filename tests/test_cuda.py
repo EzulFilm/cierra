@@ -17,7 +17,7 @@ from cierra.engine import grade_working, make_ctx, run_graph
 from cierra.targets import cuda_reasons, dctl_reasons
 from conftest import LOOKS, small
 from regression_cases import OP_CASES, op_input, op_source
-from test_targets import KEYS_PROGRAM, KITCHEN_SINK, PASS_PROGRAM, _de, _inputs
+from test_targets import HARD_CLIP_PROGRAM, KEYS_PROGRAM, KITCHEN_SINK, PASS_PROGRAM, _de, _inputs
 
 needs_gxx = pytest.mark.skipif(not have_gxx(), reason="g++ needed for the CUDA CPU harness")
 needs_gpu = pytest.mark.skipif(unavailable() is not None, reason=f"CUDA GPU runner: {unavailable()}")
@@ -214,4 +214,15 @@ def test_cuda_on_gpu_matches_cpu_harness(frames):
     for name, code in _inputs(frames).items():
         ref = grade_working(code, look, px_scale=code.shape[-1] / look.reference_width)
         de = _de(look, _run_parts(parts, code, look, run=run_cuda_gpu), ref)
+        assert de.mean() <= 0.05 and de.max() <= 0.5, (name, de.mean(), de.max())
+
+
+@needs_gxx
+def test_cuda_with_hard_clip_output(frames):
+    """display_encode(clip: hard): the kernel is the graph alone, measured through the hard-clipped output."""
+    prog = load(HARD_CLIP_PROGRAM)
+    [part] = compile_cuda(prog)
+    for name, code in _inputs(frames).items():
+        ref = grade_working(code, prog, px_scale=code.shape[-1] / prog.reference_width)
+        de = _de(prog, run_cuda(part["cuda"], code), ref)
         assert de.mean() <= 0.05 and de.max() <= 0.5, (name, de.mean(), de.max())

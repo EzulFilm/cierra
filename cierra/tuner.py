@@ -51,8 +51,10 @@ def _deficits(probes, vals, base):
     for row in probes:
         key, want, tol = row[1], row[6], row[7]
         d = vals[key] - base[key]
-        if not np.isfinite(d):
+        if not np.isfinite(base[key]):  # not measurable on this frame (e.g. no faces): no pull either way
             out[key] = 0.0
+        elif not np.isfinite(d):  # measurable before, not after (a NaN render): as far from met as it gets
+            out[key] = 1e3
         elif want == 0:
             out[key] = max(0.0, d - 0.5 * tol) / tol
         else:
@@ -192,7 +194,9 @@ def _same_knob(prog, other, knob):
     va, vb = a.args[key], b.args[key]
     if i >= len(vb):
         return False
-    return not isinstance(va[0], tuple) or (isinstance(vb[i], tuple) and float(va[i][0]) == float(vb[i][0]))
+    if not isinstance(va[0], tuple):
+        return not isinstance(vb[i], A.Keys)  # one keyframed component of the look: not a plain number to keep
+    return isinstance(vb[i], tuple) and float(va[i][0]) == float(vb[i][0])
 
 
 def _set(prog, knob, x):

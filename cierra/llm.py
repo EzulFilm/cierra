@@ -139,6 +139,8 @@ def language_reference_short():
         "Syntax: first line `cierra 0.1`; `output aces2(display: srgb)`; one node per line "
         "`node <id> = <op>(param: value, ...)`; optional next line `  mask <mask>(...)` (use `not` / `and` / `or`) or "
         "`  mix 0.5`; last line `graph a -> b -> c`. Values: numbers, [r, g, b], lo..hi ranges, [[x, y], ...] points.",
+        "Keys: `key sky = <mask>` names a mask, used as `  mask key(sky)`; `  mask not key(face)` is everything node "
+        "face's mask left out; combine with and / or / + / - (mixing or, +, - needs brackets).",
         "Working values are ACEScct: 18 % grey = 0.4136, black = 0.0729, +1 stop = +0.057.",
         "",
         "Operations (param: kind range, default):",
@@ -237,7 +239,9 @@ def usage_record(model, usage, seconds):
     get = lambda k: int(getattr(usage, k, 0) or 0)  # noqa: E731
     inp, out = get("input_tokens"), get("output_tokens")
     c_read, c_write = get("cache_read_input_tokens"), get("cache_creation_input_tokens")
-    pi, po, pc = PRICES.get(model, PRICES[DEFAULT_MODEL])
+    # a dated id ("claude-opus-5-5-20261015") is priced as its model; only an unknown model as the default
+    pi, po, pc = next((v for k, v in PRICES.items() if model == k or str(model).startswith(k + "-")),
+                      PRICES[DEFAULT_MODEL])
     cost = (inp * pi + out * po + c_read * pc + c_write * pi * 1.25) / 1e6
     return {"model": model, "input_tokens": inp, "output_tokens": out, "cache_read_tokens": c_read,
             "cache_write_tokens": c_write, "seconds": round(seconds, 2), "cost_usd": round(cost, 5)}
@@ -258,6 +262,19 @@ def _check_llm_url(url):
     if u.scheme == "http" and u.hostname in ("localhost", "127.0.0.1", "::1"):
         return
     raise ValueError(f"CIERRA_LLM_URL {url!r}: use https, or http to localhost / 127.0.0.1 / ::1")
+
+
+def _open_checked(req, timeout):
+    """urlopen that follows a redirect only to an address _check_llm_url allows (an https server must not send the
+    request on to plain http or another scheme)."""
+    import urllib.request
+
+    class Checked(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            _check_llm_url(newurl)
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+    return urllib.request.build_opener(Checked).open(req, timeout=timeout)
 
 
 RULES = [
@@ -346,10 +363,14 @@ class OpenWeightProvider:
         # program replies are sampled under cierra.grammar's GBNF (llama.cpp server `grammar` field); CIERRA_GRAMMAR=0
         # turns it off (a server that rejects the field)
         self.uses_grammar = os.environ.get("CIERRA_GRAMMAR", "1") != "0"
+        # repeats of an eval: at temperature 0 (greedy) the seed changes nothing, so a run-to-run spread needs both
+        self.seed = int(os.environ.get("CIERRA_SEED") or 1)
+        self.temperature = float(os.environ.get("CIERRA_TEMPERATURE") or 0)
 
     def complete(self, system, user, temperature=None, grammar=None):
         import urllib.request
-        req = {"model": self.model, "temperature": temperature or 0, "seed": 1,  # repeatable re-asks too
+        t = self.temperature if temperature is None else temperature  # an explicit 0 beats CIERRA_TEMPERATURE
+        req = {"model": self.model, "temperature": t, "seed": self.seed,  # repeatable
                "max_tokens": self.max_tokens,
                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
         if grammar:
@@ -358,7 +379,7 @@ class OpenWeightProvider:
         req = urllib.request.Request(self.url + "/chat/completions", data=body,
                                      headers={"Content-Type": "application/json"})
         t0 = time.monotonic()
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+        with _open_checked(req, self.timeout) as r:
             body = r.read(MAX_REPLY_BYTES + 1)
         if len(body) > MAX_REPLY_BYTES:
             raise ValueError(f"the model server replied with more than {MAX_REPLY_BYTES} bytes")
@@ -426,7 +447,7 @@ def extract(text):
 def preview(img, width=480):
     """Box-downsample (3, H, W) to about `width` pixels wide (deterministic)."""
     h, w = img.shape[1:]
-    s = max(1, w // width)
+    s = max(1, min(w // width, h))  # never more rows per box than the image has
     if s == 1:
         return img
     hh, ww = h // s * s, w // s * s
@@ -448,12 +469,13 @@ def _ask(provider, system, user, temperature=None, grammar=None):
         kw["grammar"] = grammar
     if temperature is not None:
         kw["temperature"] = temperature
-    if not kw:
-        return provider.complete(system, user)
-    try:
-        return provider.complete(system, user, **kw)
-    except TypeError:  # a provider without the argument
-        return provider.complete(system, user)
+    import inspect
+    try:  # a provider without an argument gets the call without it (an error inside the call is not retried)
+        takes = inspect.signature(provider.complete).parameters
+        kw = {k: v for k, v in kw.items() if k in takes or any(p.kind == p.VAR_KEYWORD for p in takes.values())}
+    except (TypeError, ValueError):
+        pass
+    return provider.complete(system, user, **kw)
 
 
 def _check_reply(src):
@@ -485,10 +507,11 @@ def loop_status(records):
 
 def grade_loop(notes, image, provider, history, input="linear_rec709", reference=None, start=None, max_iters=4,
                target_de=1.0, width=480, log=print, host=None, aux=None, budget_usd=None, revise=None,
-               bounded=None):
-    """Run the loop. image: (3, H, W) in `input`; reference: optional display image (same framing) of the look to
-    reach; host: what the host provides, told to the model and used for linting (frames = clip length, planes,
-    segment_ids with their meanings in segment_names, targets such as ["dctl", "lut"]); aux: the planes themselves
+               bounded=None, code_range="full", against="ungraded", video_frame=None):
+    """Run the loop. image: (3, H, W) in `input`, decoded from `code_range` codes (both recorded in each history
+    entry, with video_frame when the image is a video's frame); reference: optional display image (same framing) of
+    the look to reach; host: what the host provides, told to the model and used for linting (frames = clip length,
+    planes, segment_ids with their meanings in segment_names, targets such as ["dctl", "lut"]); aux: the planes themselves
     ({"depth": (H, W) metres, "segments": (H, W) ints}, at the preview size). Returns (best Program or None,
     list of iteration records). budget_usd (default CIERRA_BUDGET_USD or 2.00): once the provider's recorded cost
     reaches it, the remaining iterations use the rules driver.
@@ -505,11 +528,18 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
     always preferred as the best. When every version is damaged the best one is still returned, as a review candidate:
     loop_status(records) says "needs_human".
 
+    against: what the notes are judged against. "ungraded" (default): the frame without any grade, also with a start
+    program (resuming earlier work on the same notes). "start": the start program's own render, for notes that ask
+    for a change to a look ("warmer" on a warm look is met only once it is warmer than the look); the damage gate then
+    flags only damage added to the look (a film look's lifted blacks are its own). Every record says which
+    ("notes_against").
+
     Bounds (bounded, default on; CIERRA_BOUND=0 turns it off): every accepted reply has its values pulled inside the
     tuner's bounds (cierra.tuner.bound: caps around neutral, non-decreasing curves, rule nodes on their own side)
     before it is measured; what moved goes into the record ("capped") and the next round's feedback."""
     from .format import program_hash
-    from .notes import attribute, failing, measure_notes, probes_for, regions, report, revision_text, unmeasured
+    from .notes import (attribute, failing, measure_notes, probes_for, regions, report, revision_text, side_axes,
+                        side_effects, unmeasured)
     from .qc import damage
     from .tuner import bound
     if revise is None:
@@ -538,17 +568,23 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
         raise ValueError("the loop measures on an SDR Rec.709 display: start from output aces2(display: srgb | "
                          "rec1886) and switch the output for the P3 / HDR deliverable afterwards")
     out = render_fn(current)
+    if against not in ("ungraded", "start"):
+        raise ValueError(f"against={against!r}: expected ungraded or start")
+    from_look = against == "start"
+    start_out, base_name = out, ("start look" if from_look else "ungraded")
     profile = getattr(provider, "prompt_profile", None) or os.environ.get("CIERRA_PROMPT") or "full"
     stats_fn = compact_stats if profile == "short" else analysis.stats
     # note checks: probes on regions of the ungraded frame (the start program without its graph), compared round by
-    # round; "previous" starts from the start program itself
+    # round against the ungraded frame or, from a look, the look; "previous" starts from the start program itself
     base_out = render_fn(ungraded(current))
     probes, regs = probes_for(notes), regions(base_out)
-    base_vals = measure_notes(probes, base_out, regs)
     prev_vals = measure_notes(probes, out, regs)
+    base_vals = prev_vals if from_look else measure_notes(probes, base_out, regs)
+    sides, side_base = side_axes(probes), (out if from_look else base_out)  # qualities no note asks about
     feedback = {"stats_now": stats_fn(out), "measure_now": analysis.measure(out, ref)}
     if probes:
-        feedback["note_checks"] = [f"{row[2]} ({row[5]}): ungraded {round(base_vals[row[1]], 4)}" for row in probes]
+        feedback["note_checks"] = [f"{row[2]} ({row[5]}): {base_name} {round(base_vals[row[1]], 4)}"
+                                   for row in probes]
     missing = unmeasured(notes)
     if missing:
         feedback["notes_not_measured"] = missing
@@ -618,12 +654,15 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
             break
         warnings = warnings + lint(prog, host)
         out = render_fn(prog)
-        qc = damage(render_fn(ungraded(prog)), out)
+        qc = damage(start_out if from_look else render_fn(ungraded(prog)), out, base_name)
         dmg = qc["flags"]
         m = analysis.measure(out, ref)
-        entry = history.commit(prog, message, m, parent_prog=current)
+        entry = history.commit(prog, message, m, parent_prog=current,
+                               source={"input": input, "range": code_range,
+                                       **({} if video_frame is None else {"frame": video_frame})})
         now_vals = measure_notes(probes, out, regs)
-        rows, note_lines = report(probes, base_vals, prev_vals, now_vals)
+        rows, note_lines = report(probes, base_vals, prev_vals, now_vals, base_name)
+        side_rows, side_lines = side_effects(sides, side_base, out, regs, base_name)
         prev_vals = now_vals
         bad = failing(rows)
         causes = attribute(prog, probes, render_fn, regs, now_vals) if (revise and bad) else {}
@@ -633,7 +672,8 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
         rec = {"iteration": it, "accepted": True, "hash": entry["hash"], "message": message, "measure": m,
                "note_checks": rows, "notes_met": f"{score}/{len(rows)}", "causes": causes, "reasked": reasked,
                "diff": entry["diff"], "warnings": warnings, "usage": usage, "spent_usd": round(spent, 5),
-               "damage": dmg, "needs_human": bool(dmg), "watch": qc["watch"], "capped": capped}
+               "damage": dmg, "needs_human": bool(dmg), "watch": qc["watch"], "capped": capped,
+               "notes_against": base_name, "side_effects": side_rows}
         records.append(rec)
         if capped:
             log(f"iteration {it}: values pulled inside the bounds: " + "; ".join(capped))
@@ -642,6 +682,8 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
             + (f" dE00 mean {de}" if de is not None else ""))
         if dmg:
             log(f"iteration {it}: NEEDS HUMAN: " + "; ".join(dmg))
+        for line in side_lines:
+            log(f"iteration {it}: {line}")
         clean = not dmg
         if ref is not None:
             key = (clean, -de)

@@ -1,11 +1,14 @@
-# A graduated filter: darken and cool the top of the frame (the sky), with a soft edge across the horizon.
+# A graduated filter: darken and cool the top of the frame (the sky), with a soft edge across the horizon. The
+# graduated window is written once, as the key top, and both nodes use it.
 cierra 0.1
 name "sky grad"
 output aces2(display: srgb)
 
+key top = graduated(centre: [0.5, 0.45], angle: 90, falloff: [0.1, 0.25])
+
 node sky = exposure(stops: -0.6)
-  mask graduated(centre: [0.5, 0.45], angle: 90, falloff: [0.1, 0.25])
+  mask key(top)
 node sky_cool = white_balance(temperature: -0.08)
-  mask graduated(centre: [0.5, 0.45], angle: 90, falloff: [0.1, 0.25])
+  mask key(top)
 
 graph sky -> sky_cool

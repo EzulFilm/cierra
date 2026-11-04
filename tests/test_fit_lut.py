@@ -208,6 +208,31 @@ def test_fit_a_display_referred_lut(domain, inp, eotf):
     _within(rep, (1.0, 4.0, 8.0), (0.45, 0.9, 1.7))
 
 
+@pytest.mark.parametrize("domain, inp, eotf", [("rec709_display", "rec1886_photo", "gamma24"),
+                                                ("srgb_display", "srgb_photo", "srgb")])
+def test_display_lut_round_trip_with_hard_clip(domain, inp, eotf):
+    """The display program of test_fit_a_display_referred_lut against its own clipped 33-point LUT: with the default
+    soft clip it measures 2.43 / 2.60 mean on the lattice (2026-10-30); with display_encode(clip: hard) the program
+    clips as the LUT does and the lattice is exact (0.0), the picture 0.013-0.014 mean / 0.51-0.55 max (the LUT's
+    tetrahedral interpolation across the clip)."""
+    from cierra.engine import grade_working
+    from cierra.fit_lut import DOMAINS, _nodes
+    to_w, from_w = DOMAINS[domain]
+    size = 33
+    codes = _nodes(size, np.zeros(3), np.ones(3)).reshape(3, -1)
+    rng = np.random.default_rng(1)
+    picture = rng.uniform(0.05, 0.9, (3, 64, 64)) * 0.3 + rng.uniform(0.1, 0.8, (1, 64, 64)) * 0.7
+    rep = {}
+    for clip in ("soft", "hard"):
+        src = load(DISPLAY_GRADE.format(inp=inp, eotf=eotf).replace(")\n\n", f", clip: {clip})\n\n", 1))
+        assert src.output.args["clip"] == clip
+        graded = grade_working(to_w(codes).reshape(3, -1, 1), src, px_scale=1.0).reshape(3, -1)
+        rep[clip] = residual(src, from_w(graded).reshape(3, size, size, size), input=domain, frames=[picture])
+    assert rep["soft"]["lattice"]["mean"] > 2.0, rep
+    assert rep["hard"]["lattice"]["max"] < 0.01, rep
+    assert rep["hard"]["frames"]["mean"] < 0.03 and rep["hard"]["frames"]["max"] < 0.8, rep
+
+
 def test_identity_display_lut_fits_to_nothing():
     lut = __import__("cierra.fit_lut", fromlist=["_nodes"])._nodes(9, np.zeros(3), np.ones(3))
     fitted, rep = fit_lut(lut, input="rec709_display")

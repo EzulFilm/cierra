@@ -20,7 +20,7 @@ Op flags
     pointwise  output pixel depends only on the same input pixel (a 3D LUT can hold it)
     position   needs the pixel's position (x, y) but no neighbours (DCTL yes, LUT no)
     spatial    reads neighbouring pixels (blur kernels): neither LUT nor v0 DCTL
-    aux        needs a host-supplied plane ("depth" metres, "segments" integer ids)
+    aux        needs host-supplied data ("depth" metres, "segments" integer ids, "frames" neighbouring frames)
 """
 
 from dataclasses import dataclass, field
@@ -228,6 +228,27 @@ _op("guided_detail", "spatial", "Edge-aware detail on luma (guided filter): edge
      "radius_px": P("num", 1.0, 200.0, 8.0, "px", "box radius of the guided filter"),
      "edge": P("num", 0.001, 0.2, 0.02, "cv", "luma step treated as an edge (sqrt of the filter's eps)"),
      "protect_blacks": P("bool", default=True)}, **_SP)
+_op("denoise", "spatial", "Spatial noise reduction (guided filter on the ACEScct values): luma is smoothed where it "
+    "is flatter than `edge` and edges keep their shape; chroma (Cb, Cr) is smoothed over twice the radius, guided by "
+    "luma so colour stays inside its edges. strength 0 = unchanged. One frame at a time (temporal_denoise averages "
+    "over frames).",
+    {"strength": P("num", 0.0, 1.0, 0.5, "x", "blend to the filtered picture; 0 = unchanged, 1 = full"),
+     "radius_px": P("num", 1.0, 50.0, 3.0, "px", "box radius of the luma filter (chroma uses twice it)"),
+     "edge": P("num", 0.001, 0.2, 0.02, "cv", "luma step kept as an edge (sqrt of the filter's eps); ~2-3x the "
+               "noise std"),
+     "chroma": P("num", 0.0, 1.0, 1.0, "x", "chroma smoothing as a share of strength; 0 = luma only")}, **_SP)
+_op("temporal_denoise", "spatial", "Temporal noise reduction: each pixel is averaged with the same pixel in up to "
+    "`frames` neighbouring frames on each side, weighted by how alike a small patch round it is (temporal non-local "
+    "means), so grain averages out where the picture holds still and moving areas keep the current frame (no "
+    "ghosting). The neighbours pass through the graph's nodes before this one first, so they are compared as this "
+    "node sees the frame; `align` first undoes a whole-frame shift (a pan). Needs `requires frames`; at most one use, "
+    "in graph. strength 0 = unchanged.",
+    {"strength": P("num", 0.0, 1.0, 0.8, "x", "blend to the averaged picture; 0 = unchanged, 1 = full"),
+     "frames": P("int", 1, 4, 2, "frames", "neighbours on each side (2 = five frames in all)"),
+     "noise": P("num", 0.001, 0.2, 0.02, "cv", "noise std at this node; patch differences above it count as motion"),
+     "patch_px": P("num", 1.0, 20.0, 2.0, "px", "box radius of the compared patch"),
+     "align": P("bool", default=True, doc="undo a whole-frame shift (phase correlation, whole pixels) first")},
+    aux=("frames",), **_SP)
 _op("highlights_shadows", "spatial", "Local tone from a blurred luma: highlights < 0 pulls bright areas down, "
     "shadows > 0 opens dark areas. 1.0 = 0.1 cv at full strength.",
     {"highlights": P("num", -3.0, 3.0, 0.0, "x", "< 0 recover highlights"),
@@ -346,8 +367,10 @@ OUTPUTS = {
                                                    "pq_rec2020_1000", "pq_p3_2000", "pq_p3_4000", "hlg_p3_1000"),
                                   default="srgb")}),
     "display_encode": OpSpec("display_encode", "output", "Working values to Rec.709 linear, saturated colours above "
-                             "0.9 soft-compressed toward their luminance, then the display encoding. No tone scale.",
-                             {"eotf": P("enum", choices=("srgb", "gamma24"), default="srgb")}),
+                             "0.9 soft-compressed toward their luminance (clip: hard clips every channel to 0..1 "
+                             "instead, as a display LUT does), then the display encoding. No tone scale.",
+                             {"eotf": P("enum", choices=("srgb", "gamma24"), default="srgb"),
+                              "clip": P("enum", choices=("soft", "hard"), default="soft")}),
     "acescct": OpSpec("acescct", "output", "No output transform: ACEScct code values out (an LMT).", {}),
 }
 BLEND_MODES = ("normal", "add", "multiply", "lighten", "darken", "screen", "overlay", "subtract", "difference")

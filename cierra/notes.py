@@ -7,6 +7,7 @@ skin-hued). Deterministic keyword rules; a note no rule recognises is listed as 
 All values are display code values (sRGB), Y'CbCr as in cierra.analysis.
 """
 
+import os
 import re
 
 import numpy as np
@@ -26,7 +27,7 @@ def regions(d):
     dev = np.abs(((hue - SKIN_LINE_DEG + 180) % 360) - 180)
     skin = (dev < 20) & (c > 0.02) & (c < 0.25) & (y > 0.15) & (y < 0.9)
     foliage = (np.abs(((hue - 232 + 180) % 360) - 180) < 35) & (c > 0.015) & (y > 0.05)
-    return {"skin": skin, "rest": ~skin, "foliage": foliage, "all": np.ones_like(skin)}
+    return {"skin": skin, "rest": ~skin, "foliage": foliage, "rest_foliage": ~foliage, "all": np.ones_like(skin)}
 
 
 def _mean(v, m):
@@ -86,10 +87,10 @@ PROBES = [
     (r"\b(bright|brighter|lift|lighter)\b", "brighter", "brighter: mid-tones", "all", luma_q(0.5), "luma p50",
      +1, 0.005),
     (r"\b(dark|darker|moodier)\b", "darker", "darker: mid-tones", "all", luma_q(0.5), "luma p50", -1, 0.005),
-    (r"\bmore\s+(saturation|colou?r)\b|\bricher\b(?!\s+(faces?|skin))|\bvivid\b", "richer", "more colour",
-     "all", chroma, "chroma", +1, 0.001),
-    (r"\bless\s+(saturation|colou?r)\b|\bmuted\b|\bdesaturated?\b", "muted", "less colour", "all", chroma, "chroma",
-     -1, 0.001),
+    (r"\bmore\s+(saturat(ion|ed)|colou?r(ful)?)\b|\bricher\b(?!\s+(faces?|skin))|\bvivid\b", "richer",
+     "more colour", "all", chroma, "chroma", +1, 0.001),
+    (r"\bless\s+(saturat(ion|ed)|colou?r(ful)?)\b|\bmuted\b|\bdesaturated?\b", "muted", "less colour", "all", chroma,
+     "chroma", -1, 0.001),
 ]
 
 
@@ -125,9 +126,19 @@ AXES_EXAMPLES = [
 ]
 
 
+# E11 (CIERRA_COLOUR_ANCHORS=1, off by default): the colour axis is the one the 7B reverses most, so it gets concrete
+# anchors instead of "saturation of the whole picture". Written apart from every evaluation set (test_heldout_freeform).
+COLOUR_ANCHORED_DOC = ("how strong the colours are, not their warmth. more = stronger, purer colours, as at a carnival, "
+                       "a tropical fruit stall or a blazing fire; less = paler colours closer to grey, as in fog, an "
+                       "overcast winter dawn or a dusty road. Hot, glowing light means warmer and usually more colour, "
+                       "never less")
+
+
 def _axes_prompt(notes):
     lines = [f"{TRANSLATE_MARK} into one direction per axis.", "Axes and the answers allowed:"]
+    anchored = os.environ.get("CIERRA_COLOUR_ANCHORS", "0") == "1"
     for axis, doc, opts in AXES:
+        doc = COLOUR_ANCHORED_DOC if anchored and axis == "colour" else doc
         opts = list(opts) + ([f"slightly {o}" for o in opts] if axis in GRADED_AXES else [])
         lines.append(f"- {axis} ({doc}): {' / '.join(opts)} / same")
     lines += ["Answer every axis. Use 'same' unless the notes imply a direction; think about what the "
@@ -221,8 +232,10 @@ def verdict(want, tol, before, after):
     return "right way" if np.sign(delta) == want else "WRONG WAY"
 
 
-def report(probes, base, prev, now):
-    """Rows {key, label, unit, ungraded, previous, now, vs_ungraded, vs_previous} and plain-English lines."""
+def report(probes, base, prev, now, base_name="ungraded"):
+    """Rows {key, label, unit, ungraded, previous, now, vs_ungraded, vs_previous} and plain-English lines. base is
+    what a note is judged against: the ungraded frame, or the start look when the loop starts from one (base_name
+    names it in the lines; the row keys stay "ungraded" / "vs_ungraded")."""
     rows, lines = [], []
     for row in probes:
         key, label, unit, want, tol = row[1], row[2], row[5], row[6], row[7]
@@ -231,9 +244,71 @@ def report(probes, base, prev, now):
              "vs_previous": verdict(want, tol, prev[key], now[key])}
         rows.append(r)
         goal = {1: "should go up", -1: "should go down", 0: "should not rise"}[want]
-        lines.append(f"{label} ({unit}, {goal}): ungraded {r['ungraded']}, previous {r['previous']}, now {r['now']} "
-                     f"-> {r['vs_ungraded']} vs ungraded, {r['vs_previous']} vs previous")
+        lines.append(f"{label} ({unit}, {goal}): {base_name} {r['ungraded']}, previous {r['previous']}, "
+                     f"now {r['now']} -> {r['vs_ungraded']} vs {base_name}, {r['vs_previous']} vs previous")
     return rows, lines
+
+
+def colourfulness(d, m):
+    """Chroma around the region's own mean tint: how colourful, not how warm (a white-balance shift moves every
+    pixel the same way and leaves it unchanged)."""
+    _, cb, cr, _, _ = _opp(d)
+    if not m.any():
+        return float("nan")
+    return float(np.hypot(cb[m] - cb[m].mean(), cr[m] - cr[m].mean()).mean())
+
+
+# Side effects (quality review, 2026-10-27: pair each check with a "nothing else moved" budget). For each quality no
+# note asks about: (axis, the probe keys that ask about it, metric, unit, visible change). The visible change is
+# about 1 dE00 at display mid grey (sRGB 0.46), measured 2026-11-03: luma 0.0099, Cr-Cb 0.0064, chroma 0.003-0.0044;
+# contrast (p75 - p25) gets one quartile's luma step. Measured over the whole frame; colour as colourfulness, so a
+# warmer or cooler frame does not count as more colourful.
+SIDE_AXES = [
+    ("warmth", {"warmth", "coolness"}, {"skin_warmth": "rest"}, warmth, "Cr-Cb", 0.0064),
+    ("brightness", {"brighter", "darker"}, {}, luma_q(0.5), "luma p50", 0.0099),
+    ("contrast", {"contrast_up", "contrast_down"}, {}, contrast, "luma p75-p25", 0.0099),
+    ("colour", {"richer", "muted"}, {"foliage_chroma": "rest_foliage"}, colourfulness, "chroma around the mean tint",
+     0.0044),
+]
+
+
+def side_axes(probes):
+    """(axis, region, metric, unit, visible change) for each quality no note asks about. A note that asks about one
+    region only (warmer faces, less green foliage) leaves the axis watched on the rest of the frame: warmer faces that
+    cool everything else are a side effect."""
+    asked = {row[1] for row in probes}
+    out = []
+    for name, whole, regional, metric, unit, vis in SIDE_AXES:
+        if whole & asked:
+            continue
+        hit = [regional[k] for k in regional if k in asked]
+        out.append((name, hit[0] if hit else "all", metric, unit, vis))
+    return out
+
+
+def side_effects(axes, base_d, now_d, regs=None, base_name="ungraded"):
+    """Rows {axis, region, unit, before, now, change, moved} for the qualities nobody asked to change (regions from
+    cierra.notes.regions on the ungraded frame; None = whole frame only), and a plain line for each one that moved
+    visibly (the version met its notes partly by moving something else, or did more than asked). Report only: the
+    loop's verdict and the model's feedback do not use it."""
+    every = np.ones(base_d.shape[1:], dtype=bool)
+    rows, lines = [], []
+    for name, region, metric, unit, vis in axes:
+        if region != "all" and regs is None:  # no regions given: whole-frame axes only
+            continue
+        m = every if region == "all" else regs[region]
+        b, n = metric(base_d, m), metric(now_d, m)
+        moved = bool(np.isfinite(b) and np.isfinite(n) and abs(n - b) > vis)
+        rows.append({"axis": name, "region": region, "unit": unit, "before": round(b, 4), "now": round(n, 4),
+                     "change": round(n - b, 4), "moved": moved})
+        if moved:
+            where = "" if region == "all" else f" on the {REGION_NAMES[region]}"
+            lines.append(f"also moved, no note asked: {name}{where} {b:.4f} -> {n:.4f} ({unit}; visible above {vis})"
+                         f" vs {base_name}")
+    return rows, lines
+
+
+REGION_NAMES = {"rest": "rest of the frame (not the faces)", "rest_foliage": "rest of the frame (not the foliage)"}
 
 
 def failing(rows):

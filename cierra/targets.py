@@ -6,7 +6,7 @@ import numpy as np
 
 from . import ast as A
 from .ops import MASKS, OPS
-from .walk import graph_keys, graph_nodes, has_keys, keys_in, mask_calls
+from .walk import carried_keys, graph_keys, graph_nodes, has_keys, keys_in, mask_calls
 
 CURVE_OPS = ("curve", "lum_vs_sat", "sat_vs_sat")
 
@@ -41,13 +41,18 @@ def float32_curve_reason(node):
     return None
 
 
+def _kind(spec, other):
+    """Why a per-pixel target cannot hold an op: it reads other frames, or neighbouring pixels, or `other`."""
+    return "temporal (reads neighbouring frames)" if "frames" in spec.aux else "spatial" if spec.spatial else other
+
+
 def _pixel_shader_reasons(node, target):
     """The C-like per-pixel targets (DCTL, WGSL, CUDA) share one coverage: pointwise and position ops, masks that need no
     host plane and no blur, float32-safe curves (the `dctl` flag in ops.py marks what that code generator emits)."""
     spec = OPS[node.call.name]
     out = []
     if not spec.dctl:
-        out.append(f"node {node.id}: {node.call.name}() is {'spatial' if spec.spatial else 'input-stage only'}")
+        out.append(f"node {node.id}: {node.call.name}() is {_kind(spec, 'input-stage only')}")
     for mc in mask_calls(node.mask):
         ms = MASKS[mc.call.name]
         if not ms.dctl:
@@ -60,13 +65,59 @@ def _pixel_shader_reasons(node, target):
     return out
 
 
+# Gaussian ops the DCTL samples directly from neighbouring pixels (G5): the kernel radius int(3 sigma) at the reference
+# width may be at most DCTL_TAP_RADIUS px, so (2 r + 1)^2 <= 625 taps at the reference width (4x at twice the width).
+DCTL_TAP_OPS = ("blur", "sharpen", "glow", "halation", "diffusion")
+DCTL_TAP_RADIUS = 12
+
+
+def dctl_tap_radius(node):
+    """The largest kernel radius (px at the reference width) a DCTL tap node needs at any frame."""
+    v = node.call.args.get("radius_px", OPS[node.call.name].params["radius_px"].default)
+    ks = keys_in(v)
+    sigma = max(x for k in ks for _, x in k.keys) if ks else float(v)
+    return 0 if sigma < 0.3 else max(1, int(3 * sigma))
+
+
+def dctl_tap_node(node):
+    """True for a Gaussian op the DCTL can sample directly (DCTL_TAP_OPS within the radius budget)."""
+    return node.call.name in DCTL_TAP_OPS and dctl_tap_radius(node) <= DCTL_TAP_RADIUS
+
+
 def dctl_node_reasons(node):
-    return _pixel_shader_reasons(node, "DCTL v0")
+    out = _pixel_shader_reasons(node, "DCTL v0")
+    if dctl_tap_node(node):
+        out = [r for r in out if not r.startswith(f"node {node.id}: {node.call.name}() is spatial")]
+    elif node.call.name in DCTL_TAP_OPS:
+        out = [r + f" (wider than the DCTL's {DCTL_TAP_RADIUS} px kernel radius)" if " is spatial" in r else r
+               for r in out]
+    return out
+
+
+def dctl_tap_reasons(prog, g):
+    """DCTL structure: one neighbour-sampling node per DCTL, in the top-level serial chain (it re-runs the nodes before
+    it on every sampled pixel), and no carried key (key(node)) read in this graph. Uses are counted, not nodes: the
+    same node twice is two neighbour-sampling passes."""
+    from .walk import graph_refs
+    uses = [r for r in graph_refs(g) if dctl_tap_node(prog.nodes[r])]
+    if not uses:
+        return []
+    top = g.items if isinstance(g, A.Serial) else [g]
+    out = []
+    if len(uses) > 1:
+        out.append("more than one neighbour-sampling node use (" + ", ".join(uses) + "): one per DCTL")
+    on_top = sum(isinstance(x, A.Ref) and x.name in uses for x in top)
+    if on_top < len(uses):
+        out.append("neighbour-sampling node inside a parallel / layer branch: "
+                   + ", ".join(sorted(set(uses))))
+    if any(carried_keys(n.mask) for n in graph_nodes(prog, g)):
+        out.append("a carried key (key(node)) with a neighbour-sampling node")
+    return out
 
 
 def dctl_reasons(prog, graph=None):
     g = prog.graph if graph is None else graph
-    return [r for n in graph_nodes(prog, g) for r in dctl_node_reasons(n)]
+    return [r for n in graph_nodes(prog, g) for r in dctl_node_reasons(n)] + dctl_tap_reasons(prog, g)
 
 
 def wgsl_node_reasons(node):
@@ -98,7 +149,7 @@ def lut_reasons(prog, graph=None):
     for n in graph_nodes(prog, g):
         spec = OPS[n.call.name]
         if not spec.pointwise:
-            out.append(f"node {n.id}: {n.call.name}() is {'spatial' if spec.spatial else 'position-dependent'}")
+            out.append(f"node {n.id}: {n.call.name}() is {_kind(spec, 'position-dependent')}")
         for mc in mask_calls(n.mask):
             ms = MASKS[mc.call.name]
             if not ms.pointwise:

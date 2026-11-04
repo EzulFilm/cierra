@@ -11,8 +11,7 @@ from cierra.llm import NEUTRAL, RulesProvider
 from cierra.parser import parse
 
 G = reply_gbnf()
-OUTSIDE = ("keyframes", "display-referred photo", "depth and segment",  # keys(), photo_graph, requires,
-           "key routing")  # key statements and key(...)
+OUTSIDE = ("keyframes", "display-referred photo", "depth and segment")  # keys(), photo_graph, requires
 
 
 def _canon(src):
@@ -61,3 +60,57 @@ def test_loop_grammar_follows_the_profile_and_keeps_the_current_ops():
 def test_programs_the_grammar_cannot_send_back_get_no_grammar():
     keyed = load("cierra 0.1\noutput aces2()\nnode f = exposure(stops: keys(smooth, 0: -3, 24: 0))\ngraph f\n")
     assert loop_grammar(keyed, "short") is None
+    keyed_gain = load("cierra 0.1\noutput aces2()\nkey a = luma(range: 0.2..0.5)\nnode f = exposure(stops: 1)\n"
+                      "  mask key(a, gain: keys(linear, 0: 0, 10: 1))\ngraph f\n")
+    assert loop_grammar(keyed_gain, "short") is None  # keyframed key gain: still outside
+
+
+# ---------------------------------------------------------------- key statements and key(...) (G10)
+
+WIN = "window(centre: [0.4, 0.5], radius: [0.25, 0.3])"
+GRAD = "graduated(centre: [0.5, 0.4], angle: 90, falloff: [0.1, 0.2])"
+KEYED = "cierra 0.1\noutput acescct()\n"
+
+
+@pytest.mark.parametrize("body", [  # the shapes of tests/test_keys.py, all canonical
+    f"node face = exposure(stops: 0.5)\n  mask {WIN}\nnode rest = saturation(amount: 0.5)\n  mask not key(face)\n"
+    "graph face -> rest\n",
+    f"key sky = {GRAD}\nnode a = exposure(stops: 1)\n  mask key(sky)\ngraph a\n",
+    f"key w = {WIN}\nkey g = {GRAD}\nnode x = exposure(stops: 0)\n  mask key(w) + key(g)\n"
+    "node y = exposure(stops: 0)\n  mask key(w) - key(g) - key(w)\nnode z = exposure(stops: 0)\n"
+    "  mask key(w, gain: 2, offset: -0.5) and not key(g, gain: 0.5)\ngraph x -> y -> z\n",
+    f"key a = {WIN}\nnode x = exposure(stops: 1)\n  mask (key(a) - {GRAD}) or luma(range: 0.2..0.5)\ngraph x\n",
+    f"key sky = {GRAD}\nnode face = exposure(stops: 0.5)\n  mask {WIN}\nnode rest = saturation(amount: 0.6)\n"
+    "  mask not key(face) - key(sky, gain: 0.5, offset: 0.1)\ngraph face -> rest\n",
+    f"node a = exposure(stops: 1)\n  mask {WIN}\nkey outside_a = not key(a)\nnode b = saturation(amount: 0.5)\n"
+    "  mask key(outside_a)\ngraph parallel(a, b)\n",
+])
+def test_key_programs_match(body):
+    src = KEYED + body
+    assert matches(G, wrap(_canon(src)))
+    assert loop_grammar(load(src), "short") is not None
+
+
+@pytest.mark.parametrize("body", [
+    f"key a = {WIN}\nnode x = exposure(stops: 1)\n  mask key(a, offset: 0.2, gain: 2)\ngraph x\n",  # either order
+    f"key a = {WIN}\n\nnode x = exposure(stops: 1)\n  mask key(a, gain: 1, offset: 0)\ngraph x\n",       # defaults written
+])
+def test_key_text_the_parser_takes_matches(body):
+    assert matches(G, wrap(KEYED + "\n" + body))
+
+
+@pytest.mark.parametrize("body", [
+    f"key a = {WIN}\nnode x = exposure(stops: 1)\n  mask key(a) - {GRAD} or luma(range: 0.2..0.5)\ngraph x\n",  # or with -
+    f"key a = {WIN}\nnode x = exposure(stops: 1)\n  mask key(a) + key(a) - key(a)\ngraph x\n",                # + with -
+    "node x = exposure(stops: 1)\n  mask key(3)\ngraph x\n",                       # not a name
+    "node x = exposure(stops: 1)\n  mask key(a, soft: 1)\ngraph x\n",              # gain and offset only
+    "node x = exposure(stops: 1)\n  mask key(a, gain: 1, gain: 2)\ngraph x\n",     # gain twice
+    "node x = exposure(stops: 1)\n  mask key()\ngraph x\n",                        # no name
+    "node x = exposure(stops: 1)\n  mask key(a, 2)\ngraph x\n",                    # unnamed argument
+    "key a = mix 0.5\nnode x = exposure(stops: 1)\ngraph x\n",                     # a key is a mask
+    "key a\nnode x = exposure(stops: 1)\ngraph x\n",                               # no mask
+    f"node x = exposure(stops: 1)\n  key {WIN}\ngraph x\n",                        # not a modifier
+    f"key a = {WIN}\ngraph key(a)\n",                                              # not a graph term
+])
+def test_malformed_key_text_is_not_in_the_grammar(body):
+    assert not matches(G, wrap(KEYED + "\n" + body))

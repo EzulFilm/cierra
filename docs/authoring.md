@@ -408,6 +408,17 @@ Operations:
     radius_px: num 1..200 [px], default 8.0. box radius of the guided filter
     edge: num 0.001..0.2 [cv], default 0.02. luma step treated as an edge (sqrt of the filter's eps)
     protect_blacks: bool, default True.
+  denoise()  [spatial, spatial] Spatial noise reduction (guided filter on the ACEScct values): luma is smoothed where it is flatter than `edge` and edges keep their shape; chroma (Cb, Cr) is smoothed over twice the radius, guided by luma so colour stays inside its edges. strength 0 = unchanged. One frame at a time (temporal_denoise averages over frames).
+    strength: num 0..1 [x], default 0.5. blend to the filtered picture; 0 = unchanged, 1 = full
+    radius_px: num 1..50 [px], default 3.0. box radius of the luma filter (chroma uses twice it)
+    edge: num 0.001..0.2 [cv], default 0.02. luma step kept as an edge (sqrt of the filter's eps); ~2-3x the noise std
+    chroma: num 0..1 [x], default 1.0. chroma smoothing as a share of strength; 0 = luma only
+  temporal_denoise()  [spatial, spatial] Temporal noise reduction: each pixel is averaged with the same pixel in up to `frames` neighbouring frames on each side, weighted by how alike a small patch round it is (temporal non-local means), so grain averages out where the picture holds still and moving areas keep the current frame (no ghosting). The neighbours pass through the graph's nodes before this one first, so they are compared as this node sees the frame; `align` first undoes a whole-frame shift (a pan). Needs `requires frames`; at most one use, in graph. strength 0 = unchanged.
+    strength: num 0..1 [x], default 0.8. blend to the averaged picture; 0 = unchanged, 1 = full
+    frames: int 1..4 [frames], default 2. neighbours on each side (2 = five frames in all)
+    noise: num 0.001..0.2 [cv], default 0.02. noise std at this node; patch differences above it count as motion
+    patch_px: num 1..20 [px], default 2.0. box radius of the compared patch
+    align: bool, default True. undo a whole-frame shift (phase correlation, whole pixels) first
   highlights_shadows()  [spatial, spatial] Local tone from a blurred luma: highlights < 0 pulls bright areas down, shadows > 0 opens dark areas. 1.0 = 0.1 cv at full strength.
     highlights: num -3..3 [x], default 0.0. < 0 recover highlights
     shadows: num -3..3 [x], default 0.0. > 0 lift shadows
@@ -496,6 +507,6 @@ Masks (qualifiers):
 
 Outputs:
   aces2()  ACES 2.0 output transform (OpenColorIO built-in ACES 2.0 studio config): SDR 100-nit Rec.709 on an sRGB or Rec.1886 (gamma 2.4) display, SDR P3-D65 (Display P3 or DCI-style P3-D65), or HDR: PQ (Rec.2100) at 1000 / 2000 / 4000 nits in P3-D65 or Rec.2020, HLG at 1000 nits. The grading loop measures on SDR Rec.709 only.
-  display_encode()  Working values to Rec.709 linear, saturated colours above 0.9 soft-compressed toward their luminance, then the display encoding. No tone scale.
+  display_encode()  Working values to Rec.709 linear, saturated colours above 0.9 soft-compressed toward their luminance (clip: hard clips every channel to 0..1 instead, as a display LUT does), then the display encoding. No tone scale.
   acescct()  No output transform: ACEScct code values out (an LMT).
 ```

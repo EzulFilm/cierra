@@ -128,6 +128,8 @@ def export_luts(prog, folder, stem, size=65):
     files[p.name] = "LMT as CLF v3: ACEScct in -> ACEScct out"
     if prog.output.name != "acescct":
         disp = prog.output.args.get("display") or prog.output.args.get("eotf")
+        if prog.output.args.get("clip") == "hard":
+            disp += "_hardclip"
         p = folder / f"{stem}_ACEScct_to_{prog.output.name}_{disp}.cube"
         write_cube(p, bake(prog, size, with_output=True), f"{title} + {prog.output.name} {disp} (Cierra {uid})")
         files[p.name] = f"graph + output transform: ACEScct in -> display ({prog.output.name}, {disp}) out"

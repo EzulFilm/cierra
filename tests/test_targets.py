@@ -126,6 +126,39 @@ def test_lut_exports_match_reference(frames, look, tmp_path):
         assert de.mean() <= 0.3, (name, "display cube", de.mean(), de.max())
 
 
+def test_lut_export_with_hard_clip_output(frames, tmp_path):
+    prog = load(HARD_CLIP_PROGRAM)
+    files = export_luts(prog, tmp_path, "hc", size=65)
+    assert [f for f in files if "_to_" in f] == ["hc_ACEScct_to_display_encode_srgb_hardclip.cube"]
+    for name, code in _inputs(frames).items():
+        code = np.clip(code, 0, 1)
+        ref = grade_working(code, prog, px_scale=1.0)
+        out = apply_file_lut(tmp_path / "hc_ACEScct_to_display_encode_srgb_hardclip.cube", code)
+        de = C.delta_e00_display(np.clip(out, 0, 1), C.output_from_working(ref, prog.output), "srgb")
+        # measured 2026-10-30: 0.08-0.28 mean (the soft clip on the same program 0.09-0.23): +1.5 stops puts much of
+        # each frame past white, where the clip's kink falls between lattice nodes
+        assert de.mean() <= 0.4, (name, de.mean(), de.max())
+    # the default (soft) output keeps its file name
+    soft = export_luts(load(HARD_CLIP_PROGRAM.replace("(clip: hard)", "()")), tmp_path / "soft", "hc", size=3)
+    assert [f for f in soft if "_to_" in f] == ["hc_ACEScct_to_display_encode_srgb.cube"]
+
+
+@needs_gcc
+def test_dctl_with_hard_clip_output(frames):
+    """The DCTL is the graph alone: clip: hard leaves the shader as it is (bar the program hash in the header), and
+    it matches the engine through the hard-clipped output."""
+    from cierra.compile.dctl_cpu import run_dctl
+    prog = load(HARD_CLIP_PROGRAM)
+    [part] = compile_dctl(prog)
+    [soft] = compile_dctl(load(HARD_CLIP_PROGRAM.replace("(clip: hard)", "()")))
+    body = lambda t: [ln for ln in t.splitlines() if "from program" not in ln]  # noqa: E731
+    assert body(part["dctl"]) == body(soft["dctl"])
+    for name, code in _inputs(frames).items():
+        ref = grade_working(code, prog, px_scale=code.shape[-1] / prog.reference_width)
+        de = _de(prog, run_dctl(part["dctl"], code), ref)
+        assert de.mean() <= 0.05 and de.max() <= 0.5, (name, de.mean(), de.max())
+
+
 def test_lut_refuses_spatial_and_says_why(tmp_path):
     prog = load_file(LOOKS / "teal_night.cierra")
     with pytest.raises(LUTError, match="spatial"):
@@ -215,6 +248,12 @@ KEYS_PROGRAM = ("cierra 0.1\noutput acescct()\nkey sky = graduated(centre: [0.5,
                 "node cool = white_balance(temperature: -0.3)\n"
                 "  mask key(sky) + key(face, gain: 2, offset: -0.5)\n"
                 "graph face -> parallel(rest, cool)\n")
+
+# display_encode(clip: hard) (spec §9): bright, saturated colours past display white, where the hard and the soft clip
+# differ. The shader targets hold the graph only (the output transform runs after them), so they are measured through
+# the hard-clipped output like any other; the display LUT has the output inside it.
+HARD_CLIP_PROGRAM = ("cierra 0.1\noutput display_encode(clip: hard)\nnode up = exposure(stops: 1.5)\n"
+                     "node sat = saturation(amount: 1.6)\ngraph up -> sat\n")
 
 
 @pytest.mark.parametrize("src", [PASS_PROGRAM, KEYS_PROGRAM], ids=["pass", "keys"])

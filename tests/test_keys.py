@@ -221,12 +221,13 @@ def test_a_key_chain_deeper_than_the_limit_is_refused_before_it_is_walked():
         load(HEAD + src + "node x = exposure(stops: 1)\n  mask key(k63)\ngraph x\n")
 
 
-def test_key_programs_get_no_reply_grammar():
+def test_key_programs_get_a_reply_grammar():
     from cierra.grammar import loop_grammar
     for src in (f"key a = {WIN}\nnode x = exposure(stops: 1)\n  mask key(a)\ngraph x\n",
                 f"node a = exposure(stops: 1)\n  mask {WIN}\nnode b = exposure(stops: 1)\n  mask not key(a)\n"
                 "graph a -> b\n"):
-        assert loop_grammar(load("cierra 0.1\noutput aces2()\n" + src), "short") is None
+        g = loop_grammar(load("cierra 0.1\noutput aces2()\n" + src), "short")
+        assert g is not None and "mask-window" in g  # the key statement's / node's mask stays sendable
 
 
 def test_history_diff_shows_key_statements():

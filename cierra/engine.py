@@ -463,6 +463,125 @@ def op_guided_detail(code, ctx, amount, radius_px, edge, protect_blacks):
     return code + delta[None]
 
 
+def op_denoise(code, ctx, strength, radius_px, edge, chroma):
+    if strength == 0:
+        return code
+    y, _, _, cb, cr = opponent(code)
+    r, eps = radius_px * ctx["px_scale"], edge * edge
+    s, sc = strength, strength * chroma
+    yd = y + s * (guided_filter(y, y, r, eps) - y)
+    if sc:
+        cb = cb + sc * (guided_filter(y, cb, 2 * r, eps) - cb)
+        cr = cr + sc * (guided_filter(y, cr, 2 * r, eps) - cr)
+    return from_opponent(yd, cb, cr)
+
+
+class _Reached(Exception):
+    """run_node raises it at the node a temporal op runs in, while a neighbouring frame goes through the graph: it
+    carries that frame as the node sees it."""
+
+    def __init__(self, code):
+        super().__init__()
+        self.code = code
+
+
+def frames_needed(prog):
+    """Neighbouring frames on each side the program's temporal op reads (0: none), so a host decodes only those."""
+    from .walk import graph_nodes
+    return max((int(n.call.args["frames"]) for n in graph_nodes(prog, prog.graph)
+                if n.enabled and "frames" in OPS[n.call.name].aux), default=0)
+
+
+def _at_node(nb, k, ctx):
+    """Neighbour k (frames from this one) run through the graph up to the node being run, at its own frame for
+    keyframes, so it is compared with the frame in the same space and after the same grade. Masks before the node
+    read this frame's depth / segment planes (the host gives one set). The checker allows one temporal use, in graph,
+    so no temporal op runs inside this."""
+    prog = ctx.get("prog")
+    if prog is None:  # an op called outside grade_working: the neighbours are taken as given
+        return nb
+    sub = {**ctx, "frame": ctx["frame"] + k, "keys": {}, "stop": ctx["node"],
+           "aux": {a: v for a, v in ctx["aux"].items() if a != "frames"}}
+    try:
+        if ctx.get("display_referred") and prog.photo_graph is not None:
+            nb = run_graph(nb, prog.photo_graph, prog, sub)
+        run_graph(nb, prog.graph, prog, sub)
+    except _Reached as e:
+        return e.code
+    raise AssertionError(f"node {ctx['node']} is not in graph")
+
+
+def global_shift(cur, nb):
+    """Whole-pixel (dy, dx) with cur(y, x) ~ nb(y - dy, x - dx), for two (H, W) lumas. Both are box-smoothed (5 x 5)
+    so grain does not steer it. A phase correlation (Hann-windowed, the cross power damped by |r| + mean |r| rather
+    than fully whitened, so frequencies holding only noise vote less) gives a first guess; smooth pictures have a broad
+    peak, so up to 4 one-pixel steps then go downhill in the median absolute difference inside the frame (the median
+    follows what most of the frame does, not a bright object moving over it). (0, 0) unless the result lowers that
+    by a fifth, so noise alone never moves a frame, and never more than a quarter of the frame."""
+    nx = xp(cur)
+    h, w = cur.shape
+    cs, ns = box_mean(cur, 2), box_mean(nb, 2)
+    win = nx.outer(nx.hanning(h), nx.hanning(w))
+    r = nx.fft.rfft2((cs - cs.mean()) * win) * nx.conj(nx.fft.rfft2((ns - ns.mean()) * win))
+    mag = nx.abs(r)
+    c = nx.fft.irfft2(r / (mag + mag.mean() + 1e-30), s=(h, w))
+    dy, dx = divmod(int(nx.argmax(c)), w)
+    best = (dy - h if dy > h // 2 else dy, dx - w if dx > w // 2 else dx)
+    m = max(abs(best[0]), abs(best[1])) + 7  # room for the steps and the box
+    if best == (0, 0) or abs(best[0]) > h // 4 or abs(best[1]) > w // 4 or min(h, w) - 2 * m < 8:
+        return 0, 0
+
+    seen = {}
+
+    def err(s):
+        if s not in seen:
+            seen[s] = float(nx.median(nx.abs(cs - shift_frame(ns[None], *s)[0])[m:h - m, m:w - m]))
+        return seen[s]
+
+    for _ in range(4):
+        step = min(((best[0] + i, best[1] + j) for i in (-1, 0, 1) for j in (-1, 0, 1)), key=err)
+        if step == best:
+            break
+        best = step
+    return best if best != (0, 0) and err(best) < 0.8 * err((0, 0)) else (0, 0)
+
+
+def shift_frame(x, dy, dx):
+    """(C, H, W) moved by whole pixels, out(y, x) = x(y - dy, x - dx), edges replicated."""
+    nx = xp(x)
+    _, h, w = x.shape
+    rows = nx.clip(nx.arange(h) - dy, 0, h - 1)
+    cols = nx.clip(nx.arange(w) - dx, 0, w - 1)
+    return x[:, rows][:, :, cols]
+
+
+def op_temporal_denoise(code, ctx, strength, frames, noise, patch_px, align):
+    """Temporal non-local means: out = (W + sum_k w_k N_k) / (1 + sum_k w_k), the weight of neighbour k at a pixel
+    from the mean squared difference d over a patch: with no motion d ~ 2 noise^2 (two noisy samples), so
+    w = exp(-4 max(d / (2 noise^2) - 1.5, 0)) is 1 there and falls to 0 where the patch differs by more than noise
+    (motion, a cut), where the current frame is kept: no ghosts, less averaging on motion."""
+    near = {k: v for k, v in ctx["aux"].get("frames", {}).items() if 0 < abs(k) <= frames}
+    if strength == 0 or not near:
+        return code
+    nx = xp(code)
+    r = max(patch_px * ctx["px_scale"], 1.0)
+    y = luma(code)
+    acc, wsum = code.copy(), nx.ones(code.shape[1:])
+    for k in sorted(near):
+        nb = _at_node(near[k], k, ctx)
+        if nb.shape != code.shape:
+            raise ValueError(f"frame {ctx['frame'] + k} is {nb.shape[2]}x{nb.shape[1]}, this frame "
+                             f"{code.shape[2]}x{code.shape[1]}")
+        if align:
+            dy, dx = global_shift(y, luma(nb))
+            if dy or dx:
+                nb = shift_frame(nb, dy, dx)
+        d = box_mean(((code - nb) ** 2).mean(0), r)
+        wk = nx.exp(-4.0 * nx.maximum(d / (2.0 * noise * noise) - 1.5, 0.0))
+        acc, wsum = acc + wk[None] * nb, wsum + wk
+    return code + strength * (acc / wsum[None] - code)
+
+
 def op_highlights_shadows(code, ctx, highlights, shadows, radius_px):
     base = gaussian_blur(luma(code)[None], radius_px * ctx["px_scale"])[0]
     hi = smoothstep(GREY + 0.05, 0.75, base)
@@ -648,6 +767,9 @@ def resolve_args(args, frame):
 # ---------------------------------------------------------------- graph
 
 def run_node(code, node, ctx):
+    if ctx.get("stop") == node.id:  # a neighbouring frame has reached the temporal node (_at_node)
+        raise _Reached(code)
+    ctx["node"] = node.id
     mv = None
     if node.mask is not None and node.id in ctx.get("carry", ()):  # its key is read downstream: made here, off or not
         mv = ctx.setdefault("keys", {})[node.id] = mask_value(code, node.mask, ctx)
@@ -721,7 +843,10 @@ def grade_working(code, prog, frame=0, aux=None, px_scale=None, display_referred
     dev, back = pick_device(device), "gpu" if xp(code) is not np else "cpu"
     code = to_device(code, dev)
     ctx["aux"] = {k: to_device(v, dev) if k == "depth" else (to_device(v, dev).astype(np.int64) if dev == "gpu"
-                                                            else v) for k, v in ctx["aux"].items()}
+                                                            else v) for k, v in ctx["aux"].items() if k != "frames"}
+    if "frames" in (aux or {}):  # {offset: (3, H, W) ACEScct}: neighbouring frames, before photo_graph like `code`
+        ctx["aux"]["frames"] = {int(k): to_device(v, dev) for k, v in aux["frames"].items()}
+    ctx["prog"], ctx["display_referred"] = prog, display_referred
     if display_referred and prog.photo_graph is not None:
         code = run_graph(code, prog.photo_graph, prog, ctx)
     return to_device(run_graph(code, prog.graph, prog, ctx), back)
@@ -729,10 +854,17 @@ def grade_working(code, prog, frame=0, aux=None, px_scale=None, display_referred
 
 def render(prog, image, frame=0, aux=None, px_scale=None, input=None, device=None):
     """Image (3, H, W) in the program's input space (or `input`) -> output (display code values, or ACEScct for an
-    `output acescct()` program), as a NumPy array. device: "cpu" (default) or "gpu" (see grade_working)."""
+    `output acescct()` program), as a NumPy array. device: "cpu" (default) or "gpu" (see grade_working). aux "frames"
+    ({offset: image}, the neighbouring frames) are in the image's space and enter the working space the same way."""
     dev = pick_device(device)
-    image = to_device(image, dev) if dev == "gpu" else np.asarray(image, dtype=np.float64)
-    code, display_referred = C.input_to_working(image, input or prog.input)
+
+    def working(im):
+        im = to_device(im, dev) if dev == "gpu" else np.asarray(im, dtype=np.float64)
+        return C.input_to_working(im, input or prog.input)
+
+    code, display_referred = working(image)
+    if aux and "frames" in aux:
+        aux = {**aux, "frames": {k: working(v)[0] for k, v in aux["frames"].items()}}
     graded = grade_working(code, prog, frame, aux, px_scale, display_referred, device=dev)
     return to_host(C.output_from_working(graded, prog.output))
 

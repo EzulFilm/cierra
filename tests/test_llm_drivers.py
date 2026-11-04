@@ -84,6 +84,8 @@ def test_cli_loop_runs_offline(tmp_path, monkeypatch):
     recs, _ = json.JSONDecoder().raw_decode(r.stdout[r.stdout.index("[\n"):])  # log lines, records, then the program
     assert recs[0]["accepted"] and recs[0]["usage"]["model"] == "rules"
     assert "node cool = white_balance(temperature: -0.12)" in r.stdout
+    entry = json.loads((tmp_path / "hist" / "log.jsonl").read_text().splitlines()[0])
+    assert entry["source"] == {"input": "linear_rec709", "range": "full"}  # how the measured picture was read
 
 
 def test_defaults(monkeypatch):

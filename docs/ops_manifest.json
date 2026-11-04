@@ -1359,6 +1359,69 @@
     "reference": true
    }
   },
+  "denoise": {
+   "aux_planes": [],
+   "category": "spatial",
+   "doc": "Spatial noise reduction (guided filter on the ACEScct values): luma is smoothed where it is flatter than `edge` and edges keep their shape; chroma (Cb, Cr) is smoothed over twice the radius, guided by luma so colour stays inside its edges. strength 0 = unchanged. One frame at a time (temporal_denoise averages over frames).",
+   "identity_with_defaults": false,
+   "kind": "spatial",
+   "params": {
+    "chroma": {
+     "default": 1.0,
+     "doc": "chroma smoothing as a share of strength; 0 = luma only",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "edge": {
+     "default": 0.02,
+     "doc": "luma step kept as an edge (sqrt of the filter's eps); ~2-3x the noise std",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.001,
+      0.2
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "radius_px": {
+     "default": 3.0,
+     "doc": "box radius of the luma filter (chroma uses twice it)",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      50.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "strength": {
+     "default": 0.5,
+     "doc": "blend to the filtered picture; 0 = unchanged, 1 = full",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
   "density": {
    "aux_planes": [],
    "category": "primary",
@@ -2509,6 +2572,79 @@
     "reference": true
    }
   },
+  "temporal_denoise": {
+   "aux_planes": [
+    "frames"
+   ],
+   "category": "spatial",
+   "doc": "Temporal noise reduction: each pixel is averaged with the same pixel in up to `frames` neighbouring frames on each side, weighted by how alike a small patch round it is (temporal non-local means), so grain averages out where the picture holds still and moving areas keep the current frame (no ghosting). The neighbours pass through the graph's nodes before this one first, so they are compared as this node sees the frame; `align` first undoes a whole-frame shift (a pan). Needs `requires frames`; at most one use, in graph. strength 0 = unchanged.",
+   "identity_with_defaults": false,
+   "kind": "aux",
+   "params": {
+    "align": {
+     "default": true,
+     "doc": "undo a whole-frame shift (phase correlation, whole pixels) first",
+     "keyframable": false,
+     "kind": "bool",
+     "required": false,
+     "unit": null
+    },
+    "frames": {
+     "default": 2,
+     "doc": "neighbours on each side (2 = five frames in all)",
+     "keyframable": false,
+     "kind": "int",
+     "range": [
+      1,
+      4
+     ],
+     "required": false,
+     "unit": "frames"
+    },
+    "noise": {
+     "default": 0.02,
+     "doc": "noise std at this node; patch differences above it count as motion",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.001,
+      0.2
+     ],
+     "required": false,
+     "unit": "cv"
+    },
+    "patch_px": {
+     "default": 2.0,
+     "doc": "box radius of the compared patch",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      20.0
+     ],
+     "required": false,
+     "unit": "px"
+    },
+    "strength": {
+     "default": 0.8,
+     "doc": "blend to the averaged picture; 0 = unchanged, 1 = full",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": false,
+    "lut": false,
+    "reference": true
+   }
+  },
   "vibrance": {
    "aux_planes": [],
    "category": "primary",
@@ -2784,8 +2920,20 @@
    "params": {}
   },
   "display_encode": {
-   "doc": "Working values to Rec.709 linear, saturated colours above 0.9 soft-compressed toward their luminance, then the display encoding. No tone scale.",
+   "doc": "Working values to Rec.709 linear, saturated colours above 0.9 soft-compressed toward their luminance (clip: hard clips every channel to 0..1 instead, as a display LUT does), then the display encoding. No tone scale.",
    "params": {
+    "clip": {
+     "choices": [
+      "soft",
+      "hard"
+     ],
+     "default": "soft",
+     "doc": null,
+     "keyframable": false,
+     "kind": "enum",
+     "required": false,
+     "unit": null
+    },
     "eotf": {
      "choices": [
       "srgb",

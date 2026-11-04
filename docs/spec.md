@@ -118,11 +118,16 @@ size is reported as a checker problem, never an internal error. Worst case: 128 
 and 16 spatial passes. A Gaussian pass (blur_px, glow, blur, ...) has σ ≤ 600 px at reference width (radius ⌊3σ⌋ ≤
 1800 px, so ≤ 3601 taps per pass per axis, scaled by image width / reference_width). A guided pass (guided_detail,
 feather_px) counts as one spatial pass but is 6 box means (M(I), M(p), M(I·p), M(I²), M(a), M(b), §6), each separable
-and linear in the pixel count whatever the radius, so its cost does not grow with radius_px.
+and linear in the pixel count whatever the radius, so its cost does not grow with radius_px; denoise counts as one
+spatial pass and is three guided filters (luma, Cb, Cr). temporal_denoise counts as one spatial pass; for each of its
+≤ 8 neighbours it runs the graph up to its node again, one box mean, and with align two FFTs of the luma and at
+most 38 whole-frame medians.
 
 Program-level fields: `input` (default `linear_rec709`), `output` (default `aces2(display: srgb)`),
 `reference_width` 64..16384, `fps` 1..240 (informational in v0), `seed` 0..2³¹−1 (informational in v0; `grain`
-takes its own required seed), `requires` ⊆ {`depth`, `segments`}.
+takes its own required seed), `requires` ⊆ {`depth`, `segments`, `frames`}: the host data the program reads, a depth
+plane in metres, an integer segment plane, and the neighbouring frames of a clip (for temporal_denoise; a still has
+none, so such a program renders from a video only).
 
 ## 4. Colour
 
@@ -222,6 +227,8 @@ Spatial (reference engine only in v0; σ = radius_px·scale; B(·) = Gaussian bl
 | sharpen | amount 0..2 (0.3), radius_px 0.3..10 (1.5), coring 0..0.05 (0.008) | d = Y − B(Y); O = W + amount·sign(d)·max(abs(d) − coring, 0) |
 | local_contrast | amount −1..1 (0.15), radius_px 5..600 (200), protect_blacks (true) | δ = amount·(Y − B(Y)); with protect_blacks δ·smoothstep(0.05, 0.25, Y) where δ < 0; O = W + δ |
 | guided_detail | amount −1..2 (0.5), radius_px 1..200 (8), edge 0.001..0.2 cv (0.02), protect_blacks (true) | δ = amount·(Y − G(Y, Y; r, edge²)) with G the guided filter below; protect_blacks as local_contrast; O = W + δ |
+| denoise | strength 0..1 (0.5), radius_px 1..50 (3), edge 0.001..0.2 cv (0.02), chroma 0..1 (1) | spatial noise reduction, one frame at a time (temporal_denoise averages over frames). (Y, Cb, Cr) = opp(W); r = radius_px·scale, ε = edge²; s = strength, c = strength·chroma; Y′ = Y + s·(G(Y, Y; r, ε) − Y); Cb′ = Cb + c·(G(Y, Cb; 2r, ε) − Cb), Cr′ likewise (chroma smoothed over twice the radius, guided by luma so it stays inside luma edges); O = opp⁻¹(Y′, Cb′, Cr′). strength 0: O = W exactly |
+| temporal_denoise | strength 0..1 (0.8), frames int 1..4 (2), noise 0.001..0.2 cv (0.02), patch_px 1..20 (2), align (true) | temporal noise reduction (temporal non-local means); needs `requires frames`, at most one use per program, in `graph`. The host gives the frames f + k, 0 < \|k\| ≤ frames, that exist (a clip end has fewer). Each N_k is entered like the frame (step 1, then photo_graph when it runs) and run through `graph` up to this node at frame f + k (keyframes at its own frame; masks read frame f's planes), so N_k is what this node would see at f + k. With align, N_k is moved by the whole-pixel shift S(Y, Y(N_k)) below. d_k = M_r(mean over channels of (W − N_k)²) with M_r the box mean of radius r = max(patch_px·scale, 1); w_k = exp(−4·max(d_k / (2·noise²) − 1.5, 0)) (two noisy samples differ by 2·noise² in the mean square: still areas weigh ~1, a patch that differs by more than the noise (motion, a cut) weighs ~0, so it keeps the current frame); A = (W + Σ w_k·N_k) / (1 + Σ w_k); O = W + strength·(A − W). strength 0 or no neighbours: O = W exactly. S: phase correlation of the 5 × 5 box-smoothed lumas (Hann window, cross power r / (\|r\| + mean \|r\|)), then up to 4 one-pixel steps down the median absolute difference of the smoothed lumas inside the frame; kept only when it lowers that median by a fifth and is within a quarter of the frame; edges replicated |
 | highlights_shadows | highlights −3..3 (0), shadows −3..3 (0), radius_px 1..400 (60) | b = B(Y); O = W + 0.1·(highlights·smoothstep(G + 0.05, 0.75, b) + shadows·(1 − smoothstep(0.15, G, b))) |
 
 Input stage (only in `photo_graph`):
@@ -309,7 +316,7 @@ numbers; not on points, ints, enums or ranges in v0.
 | output | parameters | maths |
 |---|---|---|
 | aces2 | display srgb\|rec1886\|display_p3\|p3d65\|pq_p3_1000\|pq_rec2020_1000\|pq_p3_2000\|pq_p3_4000\|hlg_p3_1000 (srgb) | OpenColorIO built-in config `studio-config-v4.0.0_aces-v2.0_ocio-v2.5`, ACEScct in, (display, view): srgb ("sRGB - Display", "ACES 2.0 - SDR 100 nits (Rec.709)"); rec1886 ("Rec.1886 Rec.709 - Display", same view); display_p3 / p3d65 ("Display P3 - Display" / "P3-D65 - Display", "ACES 2.0 - SDR 100 nits (P3 D65)"); pq_* ("Rec.2100-PQ - Display", "ACES 2.0 - HDR 1000 / 2000 / 4000 nits (P3 D65)" or "(Rec.2020)" at 1000); hlg_p3_1000 ("Rec.2100-HLG - Display", "ACES 2.0 - HDR 1000 nits (P3 D65)"). Exact per-pixel evaluation; clipped to [0, 1]. A pixel with an input channel > 0.5 cv whose output is ≤ 10⁻⁵ in every channel (the library's gamut-compression NaN, clamped) is re-evaluated at the nearest of ±1, ±2, 4·10⁻⁴ cv. Note checks and the grading loop measure SDR Rec.709 outputs only |
-| display_encode | eotf srgb\|gamma24 (srgb) | L = M_AP1→709·dec(W); soft clip: y = clip(Y_L, 0, 1), p = max_c L; where p > 0.9 target 0.9 + 0.1·tanh((p − 0.9)/0.1) and L ← y + (L − y)·clip((target − y)/max(p − y, 1e−9), 0, 1); where min_c L < 0, L ← y + (L − y)·clip(y/max(y − min, 1e−9), 0, 1); clip [0, 1]; then sRGB or L^(1/2.4). No tone scale |
+| display_encode | eotf srgb\|gamma24 (srgb); clip soft\|hard (soft) | L = M_AP1→709·dec(W); clip soft: y = clip(Y_L, 0, 1), p = max_c L; where p > 0.9 target 0.9 + 0.1·tanh((p − 0.9)/0.1) and L ← y + (L − y)·clip((target − y)/max(p − y, 1e−9), 0, 1); where min_c L < 0, L ← y + (L − y)·clip(y/max(y − min, 1e−9), 0, 1); clip [0, 1]. clip hard: L ← clip(L, 0, 1) per channel (what a display LUT does; no compression). Then sRGB or L^(1/2.4). No tone scale |
 | acescct | | none: the graded working values (an LMT) |
 
 ## 10. Checker guarantees
@@ -317,7 +324,8 @@ numbers; not on points, ints, enums or ranges in v0.
 A program that passes `cierra.check` has: a known version; known input/output; only known ops and masks; only known
 parameters with the right types, each in range; all required parameters (including grain's seed); sorted points
 where required; valid, increasing keyframes; graph references to defined nodes, photo-only ops only in
-`photo_graph`; aux planes declared for depth / segment masks; and every size limit of §3. There is no construct for
+`photo_graph`; aux planes declared for depth / segment masks and `requires frames` for temporal_denoise, used at
+most once, in `graph`; and every size limit of §3. There is no construct for
 file, network or process access, code, expressions or loops, so the checker does not need to look for them: the
 parser cannot produce them. Rejections list every problem with line and node.
 
@@ -340,7 +348,7 @@ its readable diff (`cierra.llm.grade_loop`, `cierra.history`).
 | target | covers | notes |
 |---|---|---|
 | reference engine (NumPy float64) | everything | source of truth |
-| DCTL | pointwise + position ops, all masks except depth / segment / blurred (blur_px) / feathered (feather_px) | ACEScct in/out, float32, keyframes at one frame; spatial nodes refused, or with split=True the top-level serial graph is cut into several DCTLs around them; a curve whose points or tangents do not survive float32 is refused |
+| DCTL | pointwise + position ops, all masks except depth / segment / blurred (blur_px) / feathered (feather_px); one use of a Gaussian op (blur, sharpen, glow, halation, diffusion) per DCTL with kernel radius int(3 σ) ≤ 12 px at the reference width, in the top-level serial chain | ACEScct in/out, float32, keyframes at one frame; the Gaussian node samples its neighbours through the texture entry point and the nodes before it run again per sampled pixel (equal to the engine within float32); other spatial nodes refused, or with split=True the top-level serial graph is cut into several DCTLs around them (and before a second Gaussian node); a curve whose points or tangents do not survive float32 is refused. Wrapper for a display-referred (Rec.709 / YRGB) project: `input` decodes the node input first (rec1886_photo, srgb_photo, or a camera log: S-Log3 S-Gamut3 / S-Gamut3.Cine, LogC3, LogC4, V-Log, Apple Log, D-Log; within 2e-5 cv of the engine on grey, 4e-3 cv on any colour), `output` encodes the result for an SDR Rec.709 display: display_encode as code (float32), aces2 through a 65³ .cube written next to the DCTL (DEFINE_LUT; 0.01-0.02 ΔE00 mean from the exact transform); with split=True the first part decodes and the last encodes |
 | CLF v3 / .cube | pointwise graphs without keyframes (on nodes, masks or layer opacity) | 65³, domain 0..1 ACEScct, lattice fitted by least squares for tetrahedral interpolation (8 points per cell); LMT (ACEScct→ACEScct) and graph + output (ACEScct→display) |
 | WGSL | same as DCTL | one compute shader: ACEScct float32 r, g, b interleaved in (binding 0), the same layout out (binding 1), uniform width / height (binding 2), workgroup 8 × 8; ACEScct in/out, float32, keyframes at one frame; the same refusals and split=True as DCTL (one shared code generator) |
 | ASC CDL (.cc / .ccc / .cdl) | a serial graph of printer_lights, contrast, cdl, saturation (protect_skin 0); exposure and white_balance only at their defaults (a linear gain is not an ACEScct offset below the toe) without masks, mix < 1 or keyframes, in CDL order (affine ops, at most one power, then saturation) | folded into one slope / offset / power / saturation on ACEScct (an LMT); everything else refused with the reasons. ASC readers clamp to 0..1 after the SOP and after saturation, Cierra's cdl op does not |

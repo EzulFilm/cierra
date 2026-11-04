@@ -42,7 +42,11 @@ class Tok:
 
 
 def tokenize(src):
-    if len(src.encode("utf-8")) > LIMITS["source_bytes"]:
+    try:  # characters first (UTF-8 has at least one byte each): a huge text is refused before it is copied
+        too_big = len(src) > LIMITS["source_bytes"] or len(src.encode("utf-8")) > LIMITS["source_bytes"]
+    except UnicodeEncodeError:
+        raise ParseError("the source holds an unpaired surrogate (not valid text)") from None
+    if too_big:
         raise ParseError(f"program is larger than {LIMITS['source_bytes']} bytes")
     toks, pos, line, line_start, depth = [], 0, 1, 0, 0
     while pos < len(src):
@@ -351,7 +355,7 @@ class Parser:
             elif kw == "seed":
                 prog.seed = self.number()
             elif kw == "requires":
-                req = [self.ident("an auxiliary plane (depth, segments)")]
+                req = [self.ident("an auxiliary plane (depth, segments, frames)")]
                 while self.accept("op", ","):
                     req.append(self.ident("an auxiliary plane"))
                 prog.requires = tuple(req)

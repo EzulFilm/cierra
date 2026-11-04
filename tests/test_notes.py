@@ -3,7 +3,9 @@
 import json
 
 import numpy as np
+import pytest
 
+from cierra import colour as C
 from cierra import load
 from cierra.engine import render
 from cierra.history import History
@@ -154,3 +156,83 @@ def test_a_start_program_is_not_the_ungraded_baseline(tmp_path):
                          log=lambda *_: None)
     row = recs[0]["note_checks"][0]
     assert abs(row["ungraded"] - round(want, 4)) < 1e-4 and row["previous"] > row["ungraded"]
+
+
+def test_notes_against_the_start_look(tmp_path):
+    """against="start": from a look one stop up, "darker" is judged against the look, so half a stop up is met (it
+    is WRONG WAY against the ungraded frame, as in the test above); the damage gate compares with the look too."""
+    img = preview(frame("crowd"), 480)
+    start = "cierra 0.1\nnode up = exposure(stops: 1)\ngraph up\n"
+    reply = "```cierra\ncierra 0.1\nnode up = exposure(stops: 0.5)\ngraph up\n```\nmessage: less\n"
+    verdicts = {}
+    for against in ("ungraded", "start"):
+        _, recs = grade_loop("darker", img, _Small([reply]), History(tmp_path / against), start=start, max_iters=1,
+                             width=480, log=lambda *_: None, against=against)
+        verdicts[against] = recs[0]["note_checks"][0]["vs_ungraded"]
+        assert recs[0]["notes_against"] == ("start look" if against == "start" else "ungraded")
+    assert verdicts == {"ungraded": "WRONG WAY", "start": "right way"}
+    with pytest.raises(ValueError, match="against"):
+        grade_loop("darker", img, _Small([reply]), History(tmp_path / "x"), start=start, against="look")
+
+
+@pytest.mark.parametrize("note,key", [("less saturated", "muted"), ("less colourful", "muted"),
+                                      ("more saturated", "richer"), ("more colorful", "richer")])
+def test_saturated_and_colourful_are_saturation_notes(note, key):
+    assert [p[1] for p in probes_for(note)] == [key]
+
+
+# ---------------------------------------------------------------- side effects ("nothing else moved", Quality)
+
+def test_side_effects_flag_unasked_qualities_that_moved(tmp_path):
+    """NOTES ask about warmth (faces), colour (greens) and contrast, not brightness: warmth and colour stay watched
+    off the faces / foliage. FIRST_RUN darkens by half a stop: reported as a side effect. FOLLOWS_NOTES keeps the
+    mid-tones: brightness not flagged."""
+    from cierra.notes import SIDE_AXES, side_axes
+    assert [(ax[0], ax[1]) for ax in side_axes(probes_for(NOTES))] == [
+        ("warmth", "rest"), ("brightness", "all"), ("colour", "rest_foliage")]
+    assert len(side_axes(probes_for("keep the blacks clean"))) == len(SIDE_AXES)
+    img = frame("crowd")
+    provider = _Small([f"```cierra\n{FIRST_RUN}```\nmessage: v1\n", f"```cierra\n{FOLLOWS_NOTES}```\nmessage: v2\n"])
+    logged = []
+    _, recs = grade_loop(NOTES, img, provider, History(tmp_path / "h"), max_iters=2, width=480, log=logged.append)
+    first, second = recs[0]["side_effects"], recs[1]["side_effects"]
+    bright1, bright2 = first[1], second[1]
+    assert bright1["axis"] == "brightness" and bright1["moved"] and bright1["change"] < 0
+    assert bright2["axis"] == "brightness" and not bright2["moved"]
+    assert any("also moved, no note asked: brightness" in line for line in logged)
+    assert "also moved" not in provider.calls[1]  # report only: the model's feedback is unchanged
+
+
+def test_side_effects_below_visibility_are_not_flagged():
+    from cierra.notes import side_axes, side_effects
+    d = np.full((3, 8, 8), 0.46)
+    rows, lines = side_effects(side_axes([]), d, d + 0.005)  # half a dE00 brighter
+    assert not any(r["moved"] for r in rows) and lines == []
+    rows, lines = side_effects(side_axes([]), d, d + 0.02)
+    assert [r["axis"] for r in rows if r["moved"]] == ["brightness"] and len(lines) == 1
+
+
+def test_colourfulness_ignores_a_tint_shift():
+    """A white-balance shift moves every pixel the same way: not 'more colour' (review)."""
+    from cierra.notes import colourfulness
+    d = frame("pens")[:, ::8, ::8].clip(0, 1) ** (1 / 2.2)
+    every = np.ones(d.shape[1:], dtype=bool)
+    tinted = d + np.array([0.03, 0.0, -0.03]).reshape(3, 1, 1)
+    assert abs(colourfulness(tinted, every) - colourfulness(d, every)) < 1e-9
+    assert colourfulness(0.5 + 1.3 * (d - 0.5), every) > colourfulness(d, every) + 0.004
+
+
+def test_warmer_faces_that_cool_the_rest_are_flagged():
+    """Review gap: "warmer faces" while everything else goes cooler. rest_warmth only holds against warming, so the
+    cooling shows as a side effect on the rest of the frame."""
+    from cierra.notes import side_axes, side_effects
+    d = np.clip(C.aces2_display(C.to_working(frame("crowd")[:, ::4, ::4])), 0, 1)
+    regs = regions(d)
+    cooled = d.copy()
+    cooled[2][regs["rest"]] += 0.03  # bluer off the faces
+    cooled[0][regs["skin"]] += 0.02  # warmer faces
+    axes = side_axes(probes_for("warmer faces"))
+    rows, lines = side_effects(axes, d, cooled, regs)
+    warm = next(r for r in rows if r["axis"] == "warmth")
+    assert warm["region"] == "rest" and warm["moved"] and warm["change"] < 0
+    assert any("warmth on the rest of the frame (not the faces)" in line for line in lines)

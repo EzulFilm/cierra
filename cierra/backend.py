@@ -45,7 +45,8 @@ def device(requested=None):
 
 
 def is_gpu(a):
-    cp = _CUPY.get("m")
+    # a CuPy array made before any Cierra GPU call: load the module then, never on plain NumPy input
+    cp = _CUPY.get("m") if "m" in _CUPY or not type(a).__module__.startswith("cupy") else _cupy()
     return cp is not None and isinstance(a, cp.ndarray)
 
 

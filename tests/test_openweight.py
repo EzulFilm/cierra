@@ -94,3 +94,21 @@ def test_timeout_from_environment(monkeypatch):
     assert OpenWeightProvider(url="http://127.0.0.1:1/v1").timeout == 3600.0
     monkeypatch.delenv("CIERRA_LLM_TIMEOUT")
     assert OpenWeightProvider(url="http://127.0.0.1:1/v1").timeout == 300.0
+
+
+def test_seed_and_temperature_from_environment(server, monkeypatch):
+    url, seen = server
+    OpenWeightProvider(url=url).complete("S", "U")
+    monkeypatch.setenv("CIERRA_SEED", "2")
+    monkeypatch.setenv("CIERRA_TEMPERATURE", "0.7")
+    OpenWeightProvider(url=url).complete("S", "U")
+    assert [(b["seed"], b["temperature"]) for _, b in seen] == [(1, 0), (2, 0.7)]
+
+
+def test_explicit_zero_temperature_beats_the_environment(server, monkeypatch):
+    """temperature=0 passed by the caller is greedy even when CIERRA_TEMPERATURE says otherwise (0 is falsy)."""
+    url, seen = server
+    monkeypatch.setenv("CIERRA_TEMPERATURE", "0.7")
+    OpenWeightProvider(url=url).complete("S", "U", temperature=0)
+    OpenWeightProvider(url=url).complete("S", "U")
+    assert [b["temperature"] for _, b in seen] == [0, 0.7]

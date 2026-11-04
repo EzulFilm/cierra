@@ -132,7 +132,8 @@ def _parse_cube(text):
     if len(rows) != size ** 3:
         raise LUTFitError(f"{len(rows)} rows, LUT_3D_SIZE {size} needs {size ** 3}")
     a = np.array(rows, dtype=np.float64)
-    if not np.all(np.isfinite(a)) or len(dmin) != 3 or len(dmax) != 3 or np.any(dmax <= dmin):
+    if (not np.all(np.isfinite(a)) or len(dmin) != 3 or len(dmax) != 3 or not np.all(np.isfinite(dmin))
+            or not np.all(np.isfinite(dmax)) or np.any(dmax <= dmin)):  # NaN fails every comparison
         raise LUTFitError("non-finite LUT values or a bad domain")
     return a.reshape(size, size, size, 3).transpose(3, 0, 1, 2), dmin, dmax  # rows: red fastest -> [c, b, g, r]
 
@@ -241,7 +242,7 @@ def _gains(x, n):
     e, t = (g[0] + g[2]) / 2, (g[0] - g[2]) / 2
     n_ = e - g[1]
     model = C.acescct_encode(lin_x[None] * (2.0 ** np.array([e + t, e - n_, e - t]))[:, None])
-    if np.abs(model - n).max() > TOL_GAIN:
+    if not np.abs(model - n).max() <= TOL_GAIN:  # also NaN: a negative ratio has no log2
         return None
     label = "primary from the LUT's neutral axis (linear-light gains)"
     out = []
@@ -304,10 +305,11 @@ def _luma_wheels(x, n):
     yl = luma(n)
     pts = _greedy_curve(x, yl)
     out = [{"id": "tone", "call": f"curve(points: {_pts(pts)})", "label": "tone, colour kept (luma curve)"}]
-    y = np.clip(monotone_curve(x, pts), 0, 1)
+    tone = monotone_curve(x, pts)  # the wheels run after the curve: fit what the curve leaves
+    y = np.clip(tone, 0, 1)
     basis = np.stack([1 - smoothstep(0.1, GREY + 0.05, y), np.exp(-((y - GREY) / 0.18) ** 2),
                       smoothstep(GREY - 0.05, 0.75, y), np.ones_like(y)], 1)
-    d = n - yl[None]
+    d = n - tone[None]
     coef = np.clip(np.array([np.linalg.lstsq(basis, d[c], rcond=None)[0] for c in range(3)]), -0.3, 0.3)  # (3, 4)
     if np.abs(coef).max() >= 5e-4:
         args = [f"{k}: {_rgb(coef[:, j])}" for j, k in enumerate(("lift", "gamma", "gain", "offset"))
@@ -350,6 +352,8 @@ def _colour(p, t, wt):
     ok = (cp > 0.01) & (ct > 0.005) & (wt > 0)
     out = []
     if ok.sum() < 50:
+        if ((cp > 0.01) & (ct <= 0.005) & (wt > 0)).sum() >= 50:  # colour in, none out: a black-and-white LUT
+            out.append({"id": "colour", "call": "saturation(amount: 0)", "label": "overall saturation"})
         return out
     w = (cp * wt)[ok]
     # hue_vs_hue on the primary's hue
@@ -366,9 +370,11 @@ def _colour(p, t, wt):
         g = _wls(Bl, rho / (Bh @ v), w, prior=np.ones(len(LUM_KNOTS)))
     g = np.clip(g, 0.0, 3.0)
     at_grey = float(np.interp(GREY, LUM_KNOTS, g))
+    # scale lum_vs_sat to 1 at mid grey; a LUT that greys out mid grey only: to its most saturated luma instead
+    at_grey = at_grey if at_grey >= 0.05 else max(float(g.max()), 1e-3)
     s = float(np.exp(np.average(np.log(np.maximum(v, 1e-3)), weights=np.bincount(
         np.argmax(Bh, 1), weights=w, minlength=len(HUES)) + 1e-9))) * at_grey
-    v, g = v * at_grey / s, g / at_grey
+    v, g = v * at_grey / s, np.clip(g / at_grey, 0.0, 3.0)
     if abs(s - 1) >= 0.003:
         out.append({"id": "colour", "call": f"saturation(amount: {_num(min(max(s, 0), 3), 4)})",
                     "label": "overall saturation"})
@@ -421,14 +427,15 @@ def _region(q, t):
     y, h, c, _, _ = opponent(q)
     hb, cb, yb = h[bad], c[bad], y[bad]
     ang = np.radians(hb)
-    centre = math.degrees(math.atan2(np.average(np.sin(ang), weights=cb), np.average(np.cos(ang), weights=cb))) % 360
-    d = (hb - centre + 180) % 360 - 180
-    lo_d, hi_d = np.quantile(d, [0.05, 0.95])
-    lo_d, hi_d = min(lo_d, -5.0), max(hi_d, 5.0)  # never an empty hue range
-    if hi_d - lo_d > 300:
+    if cb.sum() <= 1e-9:  # every miss is grey: no hue to key on (and no weights to average)
         hue = None
     else:
-        hue = (round((centre + lo_d) % 360, 1), round((centre + hi_d) % 360, 1))
+        centre = math.degrees(math.atan2(np.average(np.sin(ang), weights=cb),
+                                         np.average(np.cos(ang), weights=cb))) % 360
+        d = (hb - centre + 180) % 360 - 180
+        lo_d, hi_d = np.quantile(d, [0.05, 0.95])
+        lo_d, hi_d = min(lo_d, -5.0), max(hi_d, 5.0)  # never an empty hue range
+        hue = None if hi_d - lo_d > 300 else (round((centre + lo_d) % 360, 1), round((centre + hi_d) % 360, 1))
     sat = np.clip(np.quantile(cb, [0.05, 0.95]), 0, 1)
     lum = np.clip(np.quantile(yb, [0.05, 0.95]), -0.1, 1.5)
     parts = []

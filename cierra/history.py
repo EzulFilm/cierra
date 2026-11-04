@@ -30,7 +30,7 @@ def diff(old, new):
     if old is None:
         keys = f", {len(new.keys)} key statements" if new.keys else ""
         return [f"new program: {len(new.nodes)} nodes{keys}"]
-    for attr in ("name", "input", "reference_width", "fps", "seed"):
+    for attr in ("version", "name", "input", "reference_width", "fps", "seed", "requires"):
         a, b = getattr(old, attr), getattr(new, attr)
         if a != b:
             out.append(f"{attr}: {_fmt(a)} -> {_fmt(b)}")
@@ -58,8 +58,9 @@ def diff(old, new):
         if o.call.name != n.call.name:
             out.append(f"~ node {nid}: {fcall(o.call, OPS[o.call.name])} -> {fcall(n.call, OPS[n.call.name])}")
         else:
-            for key in OPS[n.call.name].params:
-                a, b = o.call.args.get(key), n.call.args.get(key)
+            for key, p in OPS[n.call.name].params.items():  # a value left out is its default
+                a, b = (o.call.args.get(key, p.default), n.call.args.get(key, p.default)) if not p.required else \
+                    (o.call.args.get(key), n.call.args.get(key))
                 if _fmt(a) != _fmt(b):
                     out.append(f"~ node {nid}: {n.call.name} {key} {_fmt(a)} -> {_fmt(b)}")
         om = fmask(o.mask) if o.mask is not None else "none"
@@ -100,7 +101,9 @@ class History:
             raise ValueError(f"history entry names {name!r}, not a version file in {self.dir}")
         return load((self.dir / name).read_text(encoding="utf-8"))
 
-    def commit(self, prog, message, measurements=None, parent_prog=None):
+    def commit(self, prog, message, measurements=None, parent_prog=None, source=None):
+        """source: how the measured picture was read ({"input": ..., "range": "full" | "video"}), so the
+        measurements can be reproduced from the entry; left out of the entry when not given."""
         entries = self.entries()
         h = program_hash(prog)
         vid = len(entries) + 1
@@ -111,6 +114,8 @@ class History:
             parent_prog = self.load(parent)
         entry = {"id": vid, "hash": h, "parent": parent["hash"] if parent else None, "file": fname,
                  "message": message, "measurements": measurements or {}, "diff": diff(parent_prog, prog)}
+        if source:
+            entry["source"] = source
         with self.log.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, sort_keys=True) + "\n")
         return entry

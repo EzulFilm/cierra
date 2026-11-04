@@ -51,6 +51,8 @@ OP_CASES = {
     "local_contrast": "node a = local_contrast(amount: 0.6, radius_px: 20)",
     "highlights_shadows": "node a = highlights_shadows(highlights: -1.5, shadows: 1.2, radius_px: 15)",
     "guided_detail": "node a = guided_detail(amount: 1.0, radius_px: 6, edge: 0.03)",
+    "denoise": "node a = denoise(strength: 0.8, radius_px: 3, edge: 0.03, chroma: 0.7)",
+    "temporal_denoise": "requires frames\nnode a = temporal_denoise(strength: 0.9, frames: 1, noise: 0.03)",
     "mask_qualifier": "node a = exposure(stops: 1)\n  mask qualifier(hue: 100..180, sat: 0.01..0.3, lum: 0.2..0.8)",
     "mask_qualifier_wrap": "node a = exposure(stops: 1)\n  mask qualifier(hue: 300..60, soft: 0.1)",
     "mask_luma_blur": "node a = exposure(stops: 1)\n  mask luma(range: 0.3..0.6, soft: 0.05, blur_px: 4)",
@@ -85,10 +87,18 @@ def op_input():
     return C.to_working(np.ascontiguousarray(chart))
 
 
+def op_frames():
+    """Neighbours for the temporal case: the chart with seeded noise before it, moved 3 px after it."""
+    base = op_input()
+    return {-1: base + np.random.default_rng(7).normal(0, 0.02, base.shape), 1: np.roll(base, 3, axis=2)}
+
+
 def op_result(name):
     from cierra import load
     from cierra.engine import grade_working
-    out = grade_working(op_input(), load(op_source(name)), frame=7, px_scale=0.5)
+    prog = load(op_source(name))
+    aux = {"frames": op_frames()} if "frames" in prog.requires else None
+    out = grade_working(op_input(), prog, frame=7, aux=aux, px_scale=0.5)
     return {"mean": out.reshape(3, -1).mean(1).tolist(), "samples": [out[:, y, x].tolist() for y, x in SAMPLES]}
 
 

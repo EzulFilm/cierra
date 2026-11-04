@@ -72,13 +72,42 @@ Or `pip install -e ".[images]"` (add `llm` for the Anthropic driver), then:
 ```
 cierra check looks/cinematic_modern.cierra                  # check, print the canonical form
 cierra render looks/cinematic_modern.cierra tests/data/frames/crowd.npy out.png   # reference engine
-cierra dctl looks/cinematic_modern.cierra out/dctl          # DCTL (--split cuts around spatial ops)
+cierra dctl looks/cinematic_modern.cierra out/dctl          # DCTL (--split cuts around ops it cannot hold)
+cierra dctl examples/sky_grad.cierra out/dctl --in sony_slog3_sgamut3   # same, for a Rec.709 project: decodes the log, encodes for display
 cierra wgsl looks/cinematic_modern.cierra out/wgsl          # WebGPU shader
 cierra cuda looks/cinematic_modern.cierra out/cuda          # CUDA C++ kernel (.cu)
 cierra lut looks/cinematic_modern.cierra out/lut            # .cube and CLF
 cierra cdl looks/cinematic_modern.cierra out/cdl            # ASC CDL, when the program is one
 cierra fit image.npy reference.npy fitted.cierra            # fit a program to a reference grade
+cierra render look.cierra frame.tif out.png --range video   # a legal-range (16..235) PNG / TIFF
 ```
+
+PNG and TIFF input are read as full range by default (code 0 is black, the top code is white). A file exported in
+video (legal) range has black at 16 and white at 235 (4096 and 60160 in a 16-bit file); `--range video` on render,
+fit and loop reads it so those codes are 0 and 1, and keeps codes outside them as values below 0 or over 1 instead of
+clipping them. It applies to the input image, not to a reference. A float image (.npy or float TIFF) has no codes, so
+`--range video` on one is refused with a one-line error rather than ignored.
+
+A video file (MOV, MP4, MXF, MKV, ...: whatever the system `ffmpeg` decodes, H.264, ProRes, DNxHD and so on) is read
+one frame at a time: `cierra render look.cierra clip.mxf out.png --frame 120` reads frame 120 (0 is the first), by
+number, never a neighbour, and renders the program at that frame; `fit` and `loop` take `--frame` too. FFmpeg and
+ffprobe must be on PATH. The frame is the program's own input (a log camera file holds the codes the program
+declares), `--range` defaults to the stream's tag (legal range when untagged) and YUV is turned to RGB with the
+stream's matrix (BT.709 when an HD stream is untagged).
+
+A window, box or graduated mask can follow the picture: `cierra track look.cierra clip.mov --node face --from 0 --to
+120` takes the patch under the node's mask at frame 0 (`--at F` for another frame; the track then also runs
+backwards), follows it and writes its centre, and its size and angle (`--motion translate` for position only), as
+`keys(linear, ...)`, thinned to the keys linear interpolation needs to stay within 0.5 px (`--tolerance`). The
+program is rewritten in canonical form (`-o` writes another file). A track whose match falls below 0.6
+(`--min-match`) stops with one line naming the frame, and nothing is written; so does one that needs more than the
+64 keys a value may have.
+
+Temporal noise reduction: a program with `requires frames` and a node such as `temporal_denoise(strength: 0.8,
+frames: 2, noise: 0.02)` averages each pixel with the same pixel in the neighbouring frames where a small patch round
+it matches to within the noise, so grain falls (about 2.2x over five still frames) while moving areas keep the
+current frame instead of ghosting; `align` undoes a pan first. `render` reads the neighbours from the clip with the
+frame; on a still it says so in one line. LUT, DCTL, WGSL and CUDA refuse it, as they refuse spatial ops.
 
 ### On an NVIDIA GPU
 

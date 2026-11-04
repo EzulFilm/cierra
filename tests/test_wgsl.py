@@ -16,7 +16,7 @@ from cierra.engine import grade_working, make_ctx, run_graph
 from cierra.targets import dctl_reasons, wgsl_reasons
 from conftest import LOOKS, small
 from regression_cases import OP_CASES, op_input, op_source
-from test_targets import KEYS_PROGRAM, KITCHEN_SINK, PASS_PROGRAM, _de, _inputs
+from test_targets import HARD_CLIP_PROGRAM, KEYS_PROGRAM, KITCHEN_SINK, PASS_PROGRAM, _de, _inputs
 
 needs_wgpu = pytest.mark.skipif(adapter()[0] is None, reason=f"WGSL harness: {adapter()[1]}")
 
@@ -147,3 +147,14 @@ def test_wgsl_refuses_float32_collapse():
                                                                                 (1.5, 1.5)))))
     with pytest.raises(WGSLError, match="not distinct in float32"):
         compile_wgsl(prog)
+
+
+@needs_wgpu
+def test_wgsl_with_hard_clip_output(frames):
+    """display_encode(clip: hard): the shader is the graph alone, measured through the hard-clipped output."""
+    prog = load(HARD_CLIP_PROGRAM)
+    [part] = compile_wgsl(prog)
+    for name, code in _inputs(frames).items():
+        ref = grade_working(code, prog, px_scale=code.shape[-1] / prog.reference_width)
+        de = _de(prog, run_wgsl(part["wgsl"], code), ref)
+        assert de.mean() <= 0.05 and de.max() <= 0.5, (name, de.mean(), de.max())

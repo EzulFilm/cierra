@@ -216,11 +216,11 @@ class _ReadHost:
         values = {"GetProjectManager": self, "GetCurrentProject": self, "GetCurrentTimeline": self,
                   "GetCurrentVideoItem": self, "GetMediaPoolItem": self, "GetName": self.project,
                   "GetCurrentTimecode": "01:00:00:02", "GetStart": 86400, "GetEnd": 86500,
-                  "GetSourceStartFrame": 5994}
+                  "GetSourceStartFrame": 5994, "GetSourceStartTime": 5994 / float(self.clip_fps)}  # untrimmed: consistent
         if name == "GetSetting":
             return lambda key: {"timelineFrameRate": "24", "timelineDropFrameTimecode": self.drop}[key]
         if name == "GetClipProperty":
-            return lambda key: {"FPS": self.clip_fps}[key]
+            return lambda key: {"FPS": self.clip_fps, "Start TC": "00:00:00:00"}[key]
         if name in values:
             return lambda *a: (self.calls.append(name), values[name])[1]
         raise AttributeError(name)
@@ -242,3 +242,24 @@ def test_read_script_refuses_another_project_and_drop_frame():
         identity_from_read(read, 86402)
     with pytest.raises(HostError, match="drop-frame"):
         identity_from_read(_run(read_script("cierra-test"), _ReadHost(drop="1")), 86402)
+
+
+def test_source_timecode_counts_from_the_clips_start_tc():
+    """Read live 2026-11-01 (read script, an MXF at 24 fps whose media pool Start TC is 01:00:00:00, untrimmed): the
+    source frame is counted from the clip's first frame, so its timecode needs the clip's Start TC added."""
+    read = {"ok": True, "timeline_fps": 24.0, "drop_frame": "0", "timecode": "01:47:50:00", "item_start": 86400,
+            "item_end": 226115, "source_start_frame": 0, "clip_fps": 24.0, "clip_start_tc": "01:00:00:00"}
+    ident = identity_from_read(read, tc_to_frames(read["timecode"], 24))
+    assert ident["source_frame"] == 68880 and ident["source_tc"] == "01:47:50:00"
+    assert identity_from_read({**read, "clip_start_tc": None}, 155280)["source_tc"] == "00:47:50:00"  # older reads
+
+
+def test_source_start_comes_from_the_start_time_on_a_trimmed_item():
+    """Live 2026-11-01 (test timeline, the same 24 fps MXF trimmed by 100 frames): the host's source start frame says
+    99, its start time and left offset say 100; the start time is used."""
+    read = {"ok": True, "timeline_fps": 24.0, "drop_frame": "0", "item_start": 86499, "item_end": 86598,
+            "source_start_frame": 99, "source_start_time": 3604.1666666666665, "clip_fps": 24.0,
+            "clip_start_tc": "01:00:00:00"}
+    ident = identity_from_read(read, 86499)
+    assert ident["source_frame"] == 100 and ident["source_tc"] == "01:00:04:04"
+    assert identity_from_read({**read, "source_start_time": None}, 86499)["source_frame"] == 99  # older reads

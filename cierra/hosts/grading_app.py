@@ -49,6 +49,8 @@ def tc_to_frames(tc, fps):
     if not m or int(fps) != fps:
         raise HostError(f"bad timecode {tc!r} at {fps} fps (integer fps, HH:MM:SS:FF)")
     h, mi, s, f = (int(x) for x in m.groups())
+    if mi >= 60 or s >= 60:
+        raise HostError(f"minutes and seconds run 00..59, not {tc!r}")
     if f >= fps:
         raise HostError(f"frame field {f} >= fps {fps} in {tc!r}")
     return ((h * 60 + mi) * 60 + s) * int(fps) + f
@@ -62,12 +64,15 @@ def frames_to_tc(n, fps):
     return f"{s // 3600:02d}:{s // 60 % 60:02d}:{s % 60:02d}:{f:02d}"
 
 
-def frame_identity(record_frame, item_start, source_start_frame, fps, item_end=None, source_fps=None):
+def frame_identity(record_frame, item_start, source_start_frame, fps, item_end=None, source_fps=None,
+                   source_start_tc=None):
     """Every name of one frame of a timeline item. record_frame: timeline frame (Timeline position);
     item_start: TimelineItem.GetStart(); source_start_frame: TimelineItem.GetSourceStartFrame(); fps: the
     timeline's; source_fps: the clip's own (media pool "FPS"). A clip at another rate steps source_fps / fps source
     frames per timeline frame, rounded down (measured: a 59.94 fps EXR sequence on a 24 fps timeline shows
-    source +4 at record +2, not +2). source_tc only for an integer source rate."""
+    source +4 at record +2, not +2). source_tc only for an integer source rate, counted from source_start_tc (the
+    clip's media pool "Start TC"; measured 2026-11-01 on an MXF starting at 01:00:00:00: GetSourceStartFrame is 0 for
+    its first frame, so the source frame alone would name 01:47:50:00 as 00:47:50:00)."""
     clip = record_frame - item_start
     if clip < 0 or (item_end is not None and record_frame >= item_end):
         raise HostError(f"record frame {record_frame} is outside the item ({item_start}..{item_end})")
@@ -76,7 +81,8 @@ def frame_identity(record_frame, item_start, source_start_frame, fps, item_end=N
     sfps = source_fps or fps
     return {"record_frame": record_frame, "record_tc": frames_to_tc(record_frame, fps), "clip_frame": clip,
             "cierra_frame": clip, "source_frame": source,
-            "source_tc": frames_to_tc(source, sfps) if float(sfps).is_integer() else None}
+            "source_tc": (frames_to_tc(source + (tc_to_frames(source_start_tc, sfps) if source_start_tc else 0), sfps)
+                          if float(sfps).is_integer() else None)}
 
 
 # ---------------------------------------------------------------- apply
@@ -178,8 +184,9 @@ def run():
     out.update({"timeline": tl.GetName(), "timeline_fps": tl.GetSetting("timelineFrameRate"),
                 "drop_frame": tl.GetSetting("timelineDropFrameTimecode"), "timecode": tl.GetCurrentTimecode(),
                 "item": item.GetName(), "item_start": item.GetStart(), "item_end": item.GetEnd(),
-                "source_start_frame": item.GetSourceStartFrame(),
-                "clip_fps": mpi.GetClipProperty("FPS") if mpi else None})
+                "source_start_frame": item.GetSourceStartFrame(), "source_start_time": item.GetSourceStartTime(),
+                "clip_fps": mpi.GetClipProperty("FPS") if mpi else None,
+                "clip_start_tc": mpi.GetClipProperty("Start TC") if mpi else None})
     out["ok"] = True
 
 
@@ -204,8 +211,20 @@ def identity_from_read(read, record_frame):
         fps, clip_fps = float(read["timeline_fps"]), float(read["clip_fps"] or read["timeline_fps"])
     except (TypeError, ValueError):
         raise HostError(f"unreadable frame rates {read.get('timeline_fps')!r} / {read.get('clip_fps')!r}")
-    return frame_identity(record_frame, int(read["item_start"]), int(read["source_start_frame"]), fps,
-                          item_end=int(read["item_end"]), source_fps=clip_fps)
+    return frame_identity(record_frame, int(read["item_start"]), _source_start(read, clip_fps), fps,
+                          item_end=int(read["item_end"]), source_fps=clip_fps,
+                          source_start_tc=read.get("clip_start_tc") or None)
+
+
+def _source_start(read, clip_fps):
+    """The clip frame shown at the item's first record frame. GetSourceStartFrame is one short on a trimmed item
+    (measured 2026-11-01, 24 fps MXF starting 01:00:00:00: trims of 1 and 100 frames gave 0 and 99, while
+    GetSourceStartTime gave 3600 + 1/24 and 3600 + 100/24 s and GetLeftOffset 1 and 100), so the start time, less
+    the clip's Start TC, wins when both are readable at an integer rate; else the frame as the host gives it."""
+    t, tc = read.get("source_start_time"), read.get("clip_start_tc")
+    if t is not None and tc and float(clip_fps).is_integer():
+        return round(float(t) * clip_fps) - tc_to_frames(tc, clip_fps)
+    return int(read["source_start_frame"])
 
 
 def apply_script(project, version, lut, stills, node=1, wait=2.0):
@@ -214,12 +233,12 @@ def apply_script(project, version, lut, stills, node=1, wait=2.0):
     stills: [(record timecode, absolute output path)]. Data is validated and passed as JSON, never as code."""
     if not SAFE.match(version):
         raise HostError(f"unsafe version name {version!r}")
-    if not re.fullmatch(r"[A-Za-z0-9_./ -]{1,200}\.(dctl|cube|clf)", lut) or ".." in lut:
+    if not re.fullmatch(r"[A-Za-z0-9_./ -]{1,200}\.(dctl|cube|clf)", lut) or ".." in lut or lut.startswith("/"):
         raise HostError(f"unsafe LUT path {lut!r}")
     if not isinstance(node, int) or not 1 <= node <= 64:
         raise HostError("node index 1..64")
     for tc, path in stills:
-        tc_to_frames(tc, 24)  # shape check only (HH:MM:SS:FF, non-drop)
+        tc_to_frames(tc, 100)  # shape check only (HH:MM:SS:FF, non-drop; the timeline's own rate is not known here)
         if not re.fullmatch(r"[A-Za-z]:[\\/][A-Za-z0-9_.\\/ -]{1,240}\.(tif|tiff|exr|png|dpx)", path) or ".." in path:
             raise HostError(f"unsafe still path {path!r}")
     if not 0 <= wait <= 10:
@@ -254,6 +273,8 @@ def verify(result, stills, references, eotf="srgb", requested=None):
         if img.shape != ref.shape:
             return {"status": "unverified", "frames": frames,
                     "reason": f"still is {img.shape}, reference {ref.shape}: resolution or crop differs"}
+        if not (np.all(np.isfinite(img)) and np.all(np.isfinite(ref))):  # NaN fails no limit: it must not pass
+            return {"status": "unverified", "frames": frames, "reason": f"frame {i}: NaN or infinite pixel values"}
         img = np.clip(img, 0, 1)
         de = delta_e00_display(img, np.clip(ref, 0, 1), eotf)
         white = img.max(0) >= 0.998
@@ -434,7 +455,7 @@ def node_parts(prog, folder, stem, frame=0, prefer="cdl"):
 
     from .. import ast as A
     from ..compile.cdl import CDLError, fold
-    from ..compile.dctl import compile_graph
+    from ..compile.dctl import DCTLError, compile_graph
     from ..targets import dctl_node_reasons
     if prog.graph is None:
         raise HostError("the program has no graph")
@@ -464,11 +485,16 @@ def node_parts(prog, folder, stem, frame=0, prefer="cdl"):
             if why:
                 part.update(kind="refused", reason="; ".join(why))
             else:
-                folder.mkdir(parents=True, exist_ok=True)
                 name = f"{stem}_{part['index']:02d}_{node.id}.dctl"
                 title = f"{prog.name or stem}: node {part['index']} {node.id}"
-                (folder / name).write_text(compile_graph(sub, sub.graph, frame, title=title))
-                part.update(kind="dctl", file=name)
+                try:
+                    text = compile_graph(sub, sub.graph, frame, title=title)
+                except DCTLError as e:  # e.g. a neighbour-sampling node that reads a carried key
+                    part.update(kind="refused", reason=str(e))
+                else:
+                    folder.mkdir(parents=True, exist_ok=True)
+                    (folder / name).write_text(text)
+                    part.update(kind="dctl", file=name)
         parts.append(part)
     return parts
 

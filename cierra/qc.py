@@ -43,7 +43,7 @@ def _near_480(d):
 def measure(d):
     """The damage measures of one display image (3, H, W) in 0..1."""
     from .banding import banding_index
-    d = np.clip(d, 0, 1)
+    d = np.clip(np.nan_to_num(d, nan=0.0, posinf=1.0, neginf=0.0), 0, 1)  # NaN shows black, and counts so
     y = _luma(d)
     lo, hi = np.quantile(y, [0.01, 0.99])
     hist = np.bincount(np.clip((y * 255 + 0.5).astype(int), 0, 255).ravel(), minlength=256)
@@ -53,28 +53,28 @@ def measure(d):
             "banding": round(banding_index(_near_480(d))[0], 4)}
 
 
-def damage(ungraded, graded):
+def damage(ungraded, graded, base="ungraded"):
     """{"flags": [...], "needs_human": bool, "before": measures, "after": measures} for two display images of the
-    same frame."""
+    same frame. base names the first one in the flags (the loop passes "start look" when it starts from a look)."""
     m0, m1 = measure(ungraded), measure(graded)
     t, flags = THRESHOLDS, []
     if m1["clipped"] - m0["clipped"] > max(t["clipped"], t["relative"] * m0["clipped"]):
-        flags.append(f"clipped highlights: {m1['clipped']:.1f} % of pixels at white (ungraded {m0['clipped']:.1f} %, "
+        flags.append(f"clipped highlights: {m1['clipped']:.1f} % of pixels at white ({base} {m0['clipped']:.1f} %, "
                      f"allowed +{max(t['clipped'], t['relative'] * m0['clipped']):.1f})")
     if m1["crushed"] - m0["crushed"] > max(t["crushed"], t["relative"] * m0["crushed"]):
-        flags.append(f"crushed blacks: {m1['crushed']:.1f} % of pixels at black (ungraded {m0['crushed']:.1f} %, "
+        flags.append(f"crushed blacks: {m1['crushed']:.1f} % of pixels at black ({base} {m0['crushed']:.1f} %, "
                      f"allowed +{max(t['crushed'], t['relative'] * m0['crushed']):.1f})")
     if m1["milky"] - m0["milky"] > t["milky"]:
-        flags.append(f"milky blacks: darkest 1 % of luma at {m1['milky']:.3f} (ungraded {m0['milky']:.3f}, "
+        flags.append(f"milky blacks: darkest 1 % of luma at {m1['milky']:.3f} ({base} {m0['milky']:.3f}, "
                      f"allowed +{t['milky']})")
     gaps = m1["empty_bins"] - min(m0["empty_bins"], m1["range_bins"])
     if gaps > t["posterised"]:
         flags.append(f"posterisation: {m1['empty_bins']} empty 8-bit luma levels inside the image's range "
-                     f"(ungraded {m0['empty_bins']}, allowed +{t['posterised']})")
+                     f"({base} {m0['empty_bins']}, allowed +{t['posterised']})")
     watch = []  # near misses, recorded but not flagged: the first real skies show whether the threshold is tight
     added = m1["banding"] - m0["banding"]
     if added > t["banding"]:
-        flags.append(f"banding added: index {m1['banding']:.3f} (ungraded {m0['banding']:.3f}, allowed "
+        flags.append(f"banding added: index {m1['banding']:.3f} ({base} {m0['banding']:.3f}, allowed "
                      f"+{t['banding']})")
     elif added > t["banding_watch"]:
         watch.append(f"banding near the threshold: +{added:.3f} (flagged over +{t['banding']})")

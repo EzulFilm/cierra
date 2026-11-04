@@ -24,8 +24,8 @@ IDENTITY = [
     "hue_vs_lum(points: [[100, 0]])", "lum_vs_sat(points: [[0, 1], [1, 1]])", "vignette(amount: 0)",
     "grain(amount: 0, seed: 1)", "glow(strength: 0)", "halation(strength: 0)", "diffusion(strength: 0)",
     "blur(radius_px: 0)", "sharpen(amount: 0)", "local_contrast(amount: 0)", "highlights_shadows()",
-            "guided_detail(amount: 0)", "rgb_mixer()", "density()", "hue_rotate()", "vibrance()", "split_tone()",
-            "sat_vs_lum(points: [[0, 0], [1, 0]])"]
+            "guided_detail(amount: 0)", "denoise(strength: 0)", "rgb_mixer()", "density()", "hue_rotate()",
+            "vibrance()", "split_tone()", "sat_vs_lum(points: [[0, 0], [1, 0]])"]
 
 
 @pytest.mark.parametrize("node", IDENTITY)
@@ -35,7 +35,8 @@ def test_neutral_parameters_are_identity(chart, node):
 
 
 def test_every_op_has_an_identity_case():
-    covered = {c.split("(")[0] for c in IDENTITY} | {"sat_vs_sat", "photo_to_scene", "gamut_compress"}  # own tests
+    covered = {c.split("(")[0] for c in IDENTITY} | {"sat_vs_sat", "photo_to_scene", "gamut_compress",
+                                                     "temporal_denoise"}  # own tests (test_temporal.py)
     assert covered == set(OPS)
 
 
@@ -136,9 +137,35 @@ def test_grain_statistics(chart):
 
 
 def test_render_outputs(chart):
-    for out in ("aces2(display: srgb)", "aces2(display: rec1886)", "display_encode()", "display_encode(eotf: gamma24)"):
+    for out in ("aces2(display: srgb)", "aces2(display: rec1886)", "display_encode()", "display_encode(eotf: gamma24)",
+                "display_encode(clip: hard)", "display_encode(eotf: gamma24, clip: hard)"):
         d = render(load(f"cierra 0.1\noutput {out}\nnode a = exposure()\ngraph a\n"), small(chart))
         assert d.min() >= 0 and d.max() <= 1
+
+
+def test_display_encode_hard_clip(chart):
+    """clip: hard clips each Rec.709 linear channel to [0, 1] (no compression), then encodes; the default stays the
+    soft clip, byte for byte, and is not written out."""
+    from cierra.format import format_program
+    lin = np.array([[1.6, 0.95, 0.5, 0.18], [0.3, 0.92, 0.4, 0.18], [0.02, 0.1, 0.3, 0.18]])[:, :, None]
+    code = C.to_working(lin)
+    back = C.from_working(code)
+    hard = C.display_encode(code, "srgb", "hard")
+    assert np.array_equal(hard, C.srgb_encode(np.clip(back, 0, 1)))
+    assert np.array_equal(C.display_encode(code, "gamma24", "hard"), np.power(np.clip(back, 0, 1), 1 / 2.4))
+    soft = C.display_encode(code)
+    assert np.array_equal(soft, C.display_encode(code, "srgb", "soft"))
+    assert abs(hard[0, 0, 0] - 1.0) < 1e-12 and soft[0, 0, 0] < 1.0 - 1e-9  # past white: hard clips, soft compresses
+    assert np.abs(hard[:, 1] - soft[:, 1]).max() > 0.01  # saturated above the knee: soft pulls toward luminance
+    assert np.allclose(hard[:, 2:], soft[:, 2:], atol=1e-12)  # below the knee both leave the colour alone
+    # through programs: the output's clip option, the default output unchanged
+    src = "cierra 0.1\noutput display_encode({})\nnode a = saturation(amount: 1.5)\ngraph a\n"
+    img = small(chart)
+    graded = grade_working(C.to_working(img), load(src.format("")), px_scale=1.0)
+    assert np.array_equal(render(load(src.format("clip: hard")), img), C.display_encode(graded, "srgb", "hard"))
+    assert render(load(src.format("clip: soft")), img).tobytes() == render(load(src.format("")), img).tobytes()
+    assert "clip" not in format_program(load(src.format("clip: soft")))
+    assert "display_encode(clip: hard)" in format_program(load(src.format("clip: hard")))
 
 
 def test_gamut_compress_leaves_the_gamut_and_pulls_outliers_in():

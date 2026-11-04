@@ -1,9 +1,10 @@
 """A GBNF grammar for the grading loop's reply, generated from the op table, so a llama.cpp server can only sample
-replies of the right shape: a ```cierra block (header, optional name / input, output, nodes with modifier lines, one
-graph line) and then `message: ...`. Op, mask and parameter names and each parameter's value shape (number, [r, g, b],
-lo..hi, points, enum choices) are fixed by the grammar; ranges, uniqueness, graph references and every other rule stay
-with the checker. The grammar is narrower than the language (single spaces, no keyframes, no comments, no
-photo_graph), so every reply it allows is ordinary Cierra text.
+replies of the right shape: a ```cierra block (header, optional name / input, output, nodes with modifier lines and
+`key` statements among them, one graph line) and then `message: ...`. Op, mask and parameter names and each
+parameter's value shape (number, [r, g, b], lo..hi, points, enum choices) are fixed by the grammar; ranges,
+uniqueness, graph and key(...) references and every other rule stay with the checker. The grammar is narrower than
+the language (single spaces, no keyframes, no comments, no photo_graph), so every reply it allows is ordinary Cierra
+text.
 
 `matches(gbnf, text)` is a small reference recogniser for the GBNF subset written here (tests, no server needed).
 """
@@ -14,6 +15,7 @@ from functools import lru_cache
 from .ops import BLEND_MODES, INPUTS, MASKS, OPS, OUTPUTS
 
 MAX_NODES = 12
+MAX_KEYS = 8
 
 _COMMON = r'''
 num ::= "-"? [0-9]{1,6} ("." [0-9]{1,7})?
@@ -24,8 +26,11 @@ message ::= [^\n]{1,400}
 gexpr ::= gterm (" -> " gterm)*
 gterm ::= ident | "parallel(" gexpr (", " gexpr)+ ")" | "layer(" gexpr ", " gexpr (", " layer-arg)* ")"
 layer-arg ::= "mode: " ("''' + '" | "'.join(BLEND_MODES) + r'''") | "opacity: " num
-mask ::= mand (" or " mand)*
+# or, + and - (the key mixer): one kind per level, as the parser wants; mixing them needs ( )
+mask ::= mand ((" or " mand)+ | (" + " mand)+ | (" - " mand)+)?
 mand ::= munary (" and " munary)*
+# key(NAME [, gain: v] [, offset: v]): each at most once, either order
+key-ref ::= "key(" ident (", gain: " num (", offset: " num)? | ", offset: " num (", gain: " num)?)? ")"
 modline ::= "  " ("mask " mask | "mix " num | "label \"" text "\"" | "off") "\n"
 '''
 
@@ -83,8 +88,8 @@ def reply_gbnf(ops=None, masks=None):
     lines = [
         'root ::= "```cierra\\n" program "```\\nmessage: " message "\\n"?',
         # blank lines as in the canonical form the model is shown (format_program)
-        'program ::= "cierra 0.1\\n" blank (meta-line blank)* output-line blank (node blank){0,' + str(MAX_NODES)
-        + '} graph-line? blank',
+        'program ::= "cierra 0.1\\n" blank (meta-line blank)* output-line blank ((node | key-line) blank){0,'
+        + str(MAX_NODES + MAX_KEYS) + '} graph-line? blank',
         'blank ::= "\\n"{0,2}',
         'meta-line ::= name-line | about-line | input-line',
         'name-line ::= "name \\"" text "\\"\\n"',
@@ -92,8 +97,9 @@ def reply_gbnf(ops=None, masks=None):
         'input-line ::= "input " (' + " | ".join(_lit(i) for i in INPUTS if not i.endswith("_photo")) + ') "\\n"',
         'output-line ::= "output " (' + " | ".join(f"out-{_rule(o)}" for o in OUTPUTS) + ') "\\n"',
         'node ::= "node " ident " = " (' + " | ".join(f"op-{_rule(o)}" for o in ops) + ') "\\n" modline*',
+        'key-line ::= "key " ident " = " mask "\\n"',
         'graph-line ::= "graph " gexpr "\\n"',
-        'munary ::= "not " munary | "(" mask ")" | ' + " | ".join(f"mask-{_rule(m)}" for m in masks),
+        'munary ::= "not " munary | "(" mask ")" | key-ref | ' + " | ".join(f"mask-{_rule(m)}" for m in masks),
     ]
     for o, spec in OUTPUTS.items():
         lines += _call("out", o, spec)
@@ -109,7 +115,7 @@ def _mask_names(m):
         return set()
     if hasattr(m, "call"):
         return {m.call.name}
-    if hasattr(m, "target"):  # key(...): loop_grammar returns None before it gets here
+    if hasattr(m, "target"):  # key(...): its key statement's masks are counted from prog.keys
         return set()
     if hasattr(m, "m"):
         return _mask_names(m.m)
@@ -129,17 +135,15 @@ def _cached(ops, masks):
 def loop_grammar(current, profile="short"):
     """The reply grammar for one loop round: the ops and masks the prompt documents (the short reference's set, or
     all of them) plus any the current program uses, since the model must be able to send it back unchanged. None
-    when the current program uses what the grammar leaves out (keyframes, photo_graph, requires, comments, key
-    statements and key(...) references)."""
+    when the current program uses what the grammar leaves out (keyframes, photo_graph, requires, comments)."""
     from .format import format_program
     from .llm import SHORT_MASKS, SHORT_OPS
-    from .walk import mask_refs
-    if current.keys or any(mask_refs(n.mask) for n in current.nodes.values()):
-        return None
     ops, masks = (set(SHORT_OPS), set(SHORT_MASKS)) if profile == "short" else (set(OPS), set(MASKS))
     for node in current.nodes.values():
         ops.add(node.call.name)
         masks |= _mask_names(node.mask)
+    for key in current.keys.values():
+        masks |= _mask_names(key.mask)
     g = _cached(tuple(sorted(ops)), tuple(sorted(masks)))
     return g if matches(g, wrap(format_program(current))) else None
 

@@ -13,7 +13,7 @@ from .parser import parse
 from .targets import blurred
 from .walk import carried_keys, mask_calls, same
 
-AUX = ("depth", "segments")
+AUX = ("depth", "segments", "frames")  # host data: planes for depth / segment masks, neighbours for temporal_denoise
 PHOTO_INPUTS = ("srgb_photo", "rec1886_photo", "linear_photo")  # display-referred inputs: photo_graph runs for these
 
 
@@ -402,6 +402,9 @@ def check(prog):
             ctx.err(where, f"unknown operation {node.call.name!r} (operations: {', '.join(OPS)})")
             continue
         node.call = _call(ctx, where, node.call, spec)
+        for a in spec.aux:
+            if a not in prog.requires:
+                ctx.err(where, f"{spec.name}() needs the {a!r} data: add `requires {a}`")
         node.mix = _num(ctx, f"{where} mix", node.mix, 0.0, 1.0, True)
         if node.mask is not None:
             node.mask = _mask(ctx, where, node.mask, prog.requires)
@@ -420,7 +423,7 @@ def check(prog):
 
     # An omitted `graph` is the identity (an output-only program). Limits count both graphs together: node uses, and
     # spatial passes (every use of a spatial node plus every blurred mask call in the node's mask).
-    used, spatial_uses, total_refs = set(), 0, 0
+    used, spatial_uses, total_refs, temporal_uses = set(), 0, 0, 0
     for gname in ("graph", "photo_graph"):
         g = getattr(prog, gname)
         if g is None:
@@ -437,6 +440,10 @@ def check(prog):
             if spec is None:
                 continue
             spatial_uses += spec.spatial + sum(blurred(mc) for mc in mask_calls(node.mask, carried=False))
+            if "frames" in spec.aux and (gname != "graph" or temporal_uses):
+                # the engine runs each neighbouring frame through the graph up to this one use
+                ctx.err(f"line {r.line} {gname}", f"{node.call.name}() may be used once in a program, in graph")
+            temporal_uses += "frames" in spec.aux
             if spec.photo_only and gname != "photo_graph":
                 ctx.err(f"line {r.line} {gname}", f"{node.call.name}() may only run in photo_graph")
             if spec.photo_only and gname == "photo_graph" and not (i == 0 and _leads_serially(g, r)):

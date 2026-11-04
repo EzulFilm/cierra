@@ -104,8 +104,11 @@ def soft_clip(lin, knee=0.9):
     return m.clip(m.where(low < 0, y + (rgb - y) * t2, rgb), 0, 1)
 
 
-def display_encode(code, eotf="srgb"):
-    lin = soft_clip(from_working(code))
+def display_encode(code, eotf="srgb", clip="soft"):
+    """ACEScct -> display code values, no tone scale. clip soft: saturated colours compressed by soft_clip; hard: every
+    channel clipped to [0, 1], as a display LUT clips."""
+    lin = from_working(code)
+    lin = xp(lin).clip(lin, 0, 1) if clip == "hard" else soft_clip(lin)
     if eotf == "gamma24":
         return xp(lin).power(lin, 1 / 2.4)
     return srgb_encode(lin)
@@ -166,7 +169,7 @@ def _ocio_apply(proc, img):
     its CPU processor releases Python's lock (1080p ACES 2.0 output: 1.3 s on one thread, 0.33 s on four)."""
     shape = img.shape
     a = np.ascontiguousarray(to_host(img).reshape(3, -1).T, dtype=np.float32)
-    n = max(1, int(os.environ.get("CIERRA_OCIO_THREADS", "4")))
+    n = max(1, min(int(os.environ.get("CIERRA_OCIO_THREADS", "4")), os.cpu_count() or 1))
     if n > 1 and len(a) >= 65536:
         with ThreadPoolExecutor(n) as ex:
             list(ex.map(proc.applyRGB, np.array_split(a, n)))  # in place, on views of a
@@ -257,7 +260,7 @@ def output_from_working(code, out_call):
     if name == "aces2":
         return aces2_display(code, a.get("display", "srgb"))
     if name == "display_encode":
-        return display_encode(code, a.get("eotf", "srgb"))
+        return display_encode(code, a.get("eotf", "srgb"), a.get("clip", "soft"))
     if name == "acescct":
         return code
     raise ValueError(name)

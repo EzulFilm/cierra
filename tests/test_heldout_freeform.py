@@ -70,16 +70,27 @@ def test_axes_translation_reads_one_direction_per_axis():
 
 
 def test_axes_examples_are_kept_apart_from_the_held_out_sets():
-    from cierra.notes import AXES_EXAMPLES
+    from cierra.notes import AXES_EXAMPLES, COLOUR_ANCHORED_DOC
 
     def trigrams(t):
         w = [x.strip(".,:;'").lower() for x in t.split()]
         return {tuple(w[i:i + 3]) for i in range(len(w) - 2)}
 
     held = [c["notes"] for c in CASES]
-    held += [c["notes"] for c in json.loads((ROOT / "tests" / "data" / "heldout.json").read_text())["cases"]]
-    for ex, _ in AXES_EXAMPLES:
+    for name in ("heldout.json", "heldout_freeform_b.json"):
+        held += [c["notes"] for c in json.loads((ROOT / "tests" / "data" / name).read_text())["cases"]]
+    for ex in [ex for ex, _ in AXES_EXAMPLES] + [COLOUR_ANCHORED_DOC]:
         assert all(not (trigrams(ex) & trigrams(h)) for h in held), ex
+
+
+def test_colour_anchors_change_only_the_colour_axis_and_only_when_asked(monkeypatch):
+    from cierra.notes import COLOUR_ANCHORED_DOC, _axes_prompt
+    monkeypatch.delenv("CIERRA_COLOUR_ANCHORS", raising=False)
+    plain = _axes_prompt("Fog.")
+    assert COLOUR_ANCHORED_DOC not in plain
+    monkeypatch.setenv("CIERRA_COLOUR_ANCHORS", "1")
+    anchored = _axes_prompt("Fog.")
+    assert anchored == plain.replace("saturation of the whole picture", COLOUR_ANCHORED_DOC)
 
 
 def test_compare_intents():

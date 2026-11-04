@@ -41,10 +41,14 @@ def test_op_cases_cover_every_op_and_mask():
 
 
 def test_op_cases_are_not_identities():
-    from regression_cases import op_input
+    from regression_cases import SAMPLES, op_input
     base = op_input().reshape(3, -1).mean(1)
     for name, r in OPS_GOLD.items():
-        assert np.abs(np.array(r["mean"]) - base).max() > 1e-5 or name in ("grain", "sharpen", "blur"), name
+        mean_kept = name in ("grain", "sharpen", "blur", "denoise", "temporal_denoise")  # move pixels, not the mean
+        assert np.abs(np.array(r["mean"]) - base).max() > 1e-5 or mean_kept, name
+    sample_moved = np.abs(np.array(OPS_GOLD["denoise"]["samples"]) - op_input()[:, [y for y, _ in SAMPLES],
+                                                                              [x for _, x in SAMPLES]].T).max()
+    assert sample_moved > 1e-3, sample_moved
 
 
 def test_depth_and_segment_masks():
@@ -102,12 +106,13 @@ def _boundary_cases():
 def test_range_boundaries(op, key, p):
     req = ", seed: 1" if op == "grain" and key != "seed" else ""
     fmt = (lambda v: str(int(v))) if p.kind == "int" else (lambda v: repr(float(v)))
+    head = "cierra 0.1\n" + "".join(f"requires {a}\n" for a in OPS[op].aux)
     for v in (p.lo, p.hi):
-        load(f"cierra 0.1\nnode a = {op}({key}: {fmt(v)}{req})\ngraph a\n")
+        load(f"{head}node a = {op}({key}: {fmt(v)}{req})\ngraph a\n")
     eps = 1 if p.kind == "int" else max(1e-6, abs(p.hi - p.lo) * 1e-6)
     for v in (p.lo - eps, p.hi + eps):
         with pytest.raises(CierraError, match="outside"):
-            load(f"cierra 0.1\nnode a = {op}({key}: {fmt(v)}{req})\ngraph a\n")
+            load(f"{head}node a = {op}({key}: {fmt(v)}{req})\ngraph a\n")
 
 
 def test_parser_never_crashes_on_mutations():
