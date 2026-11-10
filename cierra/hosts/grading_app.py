@@ -312,8 +312,9 @@ def export_bundle(prog, folder, stem, parent=None, frames=None):
     files, refused = {}, {}
     try:
         for part in compile_dctl(prog, split=False):
-            (folder / f"{stem}.dctl").write_text(part["dctl"])
-            files[f"{stem}.dctl"] = "DCTL: ACEScct in / out"
+            name = f"{stem}.dctl" if part["name"] == "main" else f"{stem}_{part['name']}.dctl"
+            (folder / name).write_text(part["dctl"])
+            files[name] = "DCTL: ACEScct in / out; " + part["note"]
     except DCTLError as e:
         refused["dctl"] = str(e)
     for name, fn in (("lut", lambda: export_luts(prog, folder, stem)), ("cdl", lambda: export_cdl(prog, folder, stem))):
@@ -448,14 +449,14 @@ def import_grade(read, input="acescct", frames=None, lut=None):
 
 def node_parts(prog, folder, stem, frame=0, prefer="cdl"):
     """The program node for node, for a clip's serial nodes 1..N: per enabled node a CDL (when the node alone is one
-    CDL and prefer="cdl") or its own DCTL written to folder (ACEScct in and out, mask and mix included), or refused
-    with the reason (spatial ops, host planes). Returns [{"index", "node", "kind": cdl | dctl | refused, "label",
+    CDL and prefer="cdl") or DCTL written to folder (ACEScct in and out, mask and mix included), or refused with the
+    reason (host planes). A two-pass luma op takes two adjacent indices. Returns [{"index", "node", "kind", "label",
     "cdl" | "file" | "reason"}]."""
     import dataclasses
 
     from .. import ast as A
     from ..compile.cdl import CDLError, fold
-    from ..compile.dctl import DCTLError, compile_graph
+    from ..compile.dctl import DCTLError, compile_dctl
     from ..targets import dctl_node_reasons
     if prog.graph is None:
         raise HostError("the program has no graph")
@@ -485,16 +486,21 @@ def node_parts(prog, folder, stem, frame=0, prefer="cdl"):
             if why:
                 part.update(kind="refused", reason="; ".join(why))
             else:
-                name = f"{stem}_{part['index']:02d}_{node.id}.dctl"
                 title = f"{prog.name or stem}: node {part['index']} {node.id}"
                 try:
-                    text = compile_graph(sub, sub.graph, frame, title=title)
+                    generated = compile_dctl(sub, frame)
                 except DCTLError as e:  # e.g. a neighbour-sampling node that reads a carried key
                     part.update(kind="refused", reason=str(e))
                 else:
                     folder.mkdir(parents=True, exist_ok=True)
-                    (folder / name).write_text(text)
-                    part.update(kind="dctl", file=name)
+                    for piece in generated:
+                        current = dict(part, index=len(parts) + 1)
+                        suffix = "" if len(generated) == 1 else " " + piece["pass"]
+                        name = f"{stem}_{current['index']:02d}_{node.id}{suffix.replace(' ', '_')}.dctl"
+                        (folder / name).write_text(piece["dctl"])
+                        current.update(kind="dctl", file=name, label=current["label"] + suffix)
+                        parts.append(current)
+                    continue
         parts.append(part)
     return parts
 

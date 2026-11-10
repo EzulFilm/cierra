@@ -171,6 +171,14 @@ def test_offline_bundle(tmp_path):
     assert json.loads((tmp_path / "manifest.json").read_text())["program"] == m["program"]
 
 
+def test_offline_bundle_keeps_both_two_pass_dctl_files(tmp_path):
+    prog = load("cierra 0.1\nnode a = local_contrast(radius_px: 40)\ngraph a\n")
+    m = export_bundle(prog, tmp_path, "local")
+    assert set(m["files"]) >= {"local_main_horizontal.dctl", "local_main_vertical.dctl"}
+    assert "alpha" in (tmp_path / "local_main_horizontal.dctl").read_text()
+    assert "p_TexA" in (tmp_path / "local_main_vertical.dctl").read_text()
+
+
 @pytest.mark.parametrize("fault", [dict(still_ok=False), dict(playhead_ok=False)])
 def test_a_failed_still_or_playhead_rolls_the_grade_back(fault):
     v = version_name(PROG)

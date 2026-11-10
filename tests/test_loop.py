@@ -90,3 +90,21 @@ def test_narrow_images(w, tmp_path):
     assert s["waveform"]["columns"] == min(6, w)
     best, recs = grade_loop("warmer", img, RulesProvider(), History(tmp_path / "h"), max_iters=1, log=lambda *_: None)
     assert recs
+
+
+def test_with_a_translation_the_raw_note_is_not_parsed_for_checks(tmp_path, chart):
+    """Colourist shorthand matches check words by accident ("lift" reads as "brighter"). When the caller passes the
+    notes restated as checks, the model's feedback lists those and nothing guessed from the raw note."""
+    from cierra.history import History
+    from cierra.llm import ScriptedProvider, grade_loop
+    from conftest import small
+    reply = ("```cierra\ncierra 0.1\noutput aces2(display: srgb)\nnode down = exposure(stops: -0.3)\ngraph down\n```\n"
+             "message: darker\n")
+    note = "do not lift the floor, it should sit heavy (In short: darker.)"
+    for checks, want, not_want in ((None, "brighter", None), ("darker", "darker", "brighter")):
+        p = ScriptedProvider([reply])
+        grade_loop(note, small(chart), p, History(tmp_path / str(checks)), max_iters=1, revise=False,
+                   log=lambda *_: None, checks=checks)
+        fed = p.calls[0].split("note_checks")[1].split("]")[0]
+        assert want in fed and (not_want is None or not_want not in fed), (checks, fed)
+        assert ("notes_not_measured" in p.calls[0]) == (checks is None)

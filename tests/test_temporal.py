@@ -8,7 +8,8 @@ import numpy as np
 import pytest
 
 from cierra import CierraError, load
-from cierra.engine import box_mean, global_shift, grade_working, shift_frame
+from cierra.engine import (box_mean, global_shift, global_shift_subpixel, grade_working, shift_frame,
+                           shift_frame_subpixel)
 
 H, W, SIGMA = 64, 96, 0.02
 HEAD = "cierra 0.1\noutput acescct()\nrequires frames\n"
@@ -102,6 +103,29 @@ def test_shift_frame_moves_whole_pixels():
     x = np.arange(12.0).reshape(1, 3, 4)
     assert np.array_equal(shift_frame(x, 0, 1)[0, 0], [0, 0, 1, 2])
     assert np.array_equal(shift_frame(x, 1, 0)[0, :, 0], [0, 0, 4])
+
+
+def test_shift_frame_subpixel_is_bilinear_and_exact_at_integers():
+    x = np.arange(12.0).reshape(1, 3, 4)
+    assert np.array_equal(shift_frame_subpixel(x, 1, 1), shift_frame(x, 1, 1))
+    assert np.array_equal(shift_frame_subpixel(x, 0, 0.5)[0, 0], [0, 0.5, 1.5, 2.5])
+    assert np.array_equal(shift_frame_subpixel(x, 0.5, 0)[0, :, 0], [0, 2, 6])  # out(y) = x(y - dy), top edge kept
+
+
+def test_subpixel_pan_is_recovered_and_denoised_without_hallucinating_zero_motion():
+    scenes = [_scene(dx=-0.43 * i, dy=0.27 * i) for i in range(5)]
+    cur, near, clean = _sequence(scenes)
+    dy, dx = global_shift_subpixel(clean[1], scenes[3][1])
+    assert abs(dy - (-0.27)) < 0.15 and abs(dx - 0.43) < 0.15, (dy, dx)
+    out = grade_working(cur, _prog(), frame=2, aux={"frames": near}, px_scale=1.0)
+    inner = (slice(None), slice(12, -12), slice(12, -12))
+    factor = _rms((cur - clean)[inner]) / _rms((out - clean)[inner])
+    print(f"sub-pixel pan: shift {(dy, dx)}, noise factor {factor:.2f}")
+    assert factor > 1.8, factor
+    cur, near, _ = _sequence([_scene()] * 5)
+    assert global_shift_subpixel(cur[1], near[1][1]) == (0.0, 0.0)
+    flat = np.full((H, W), 0.4)
+    assert global_shift_subpixel(flat, flat) == (0.0, 0.0)
 
 
 def test_strength_0_and_no_neighbours_are_the_identity():

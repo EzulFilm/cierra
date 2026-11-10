@@ -20,7 +20,9 @@ SHIM = r"""
 #define __DEVICE__ static inline
 #define __CONSTANT__ static const
 typedef struct { float x, y, z; } float3;
+typedef struct { float x, y, z, w; } float4;
 static inline float3 make_float3(float a, float b, float c) { float3 r = {a, b, c}; return r; }
+static inline float4 make_float4(float a, float b, float c, float d) { float4 r = {a, b, c, d}; return r; }
 #define _fabs fabsf
 #define _powf powf
 #define _logf logf
@@ -36,11 +38,11 @@ static inline float3 make_float3(float a, float b, float c) { float3 r = {a, b, 
 #define _fminf fminf
 static inline float _clampf(float x, float lo, float hi) { return x < lo ? lo : (x > hi ? hi : x); }
 /* texture form: one plane of the input, read at integer pixel positions (clamped to the frame) */
-typedef struct { const float *d; int w, h, c; } cr_tex;
+typedef struct { const float *d; int w, h, c, n; } cr_tex;
 #define __TEXTURE__ cr_tex
 static inline float _tex2D(cr_tex t, int x, int y) {
     x = x < 0 ? 0 : (x >= t.w ? t.w - 1 : x); y = y < 0 ? 0 : (y >= t.h ? t.h - 1 : y);
-    return t.d[3 * ((size_t)y * t.w + x) + t.c];
+    return t.d[t.n * ((size_t)y * t.w + x) + t.c];
 }
 """
 
@@ -97,12 +99,13 @@ MAIN_TEX = r"""
 int main(int argc, char **argv) {
     int w = atoi(argv[1]), h = atoi(argv[2]);
     size_t n = (size_t)w * h;
-    float *buf = malloc(n * 3 * sizeof(float)), *dst = malloc(n * 3 * sizeof(float));
-    if (fread(buf, sizeof(float), n * 3, stdin) != n * 3) return 2;
-    cr_tex tr = {buf, w, h, 0}, tg = {buf, w, h, 1}, tb = {buf, w, h, 2};
+    float *buf = malloc(n * __IN__ * sizeof(float)), *dst = malloc(n * 3 * sizeof(float));
+    if (fread(buf, sizeof(float), n * __IN__, stdin) != n * __IN__) return 2;
+    cr_tex tr = {buf, w, h, 0, __IN__}, tg = {buf, w, h, 1, __IN__}, tb = {buf, w, h, 2, __IN__};
+    cr_tex ta = {buf, w, h, 3, __IN__};
     for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
         float *p = dst + 3 * ((size_t)y * w + x);
-        float3 o = transform(w, h, x, y, tr, tg, tb);
+        float3 o = transform(w, h, x, y, __TEXARGS__);
         p[0] = o.x; p[1] = o.y; p[2] = o.z;
     }
     fwrite(dst, sizeof(float), n * 3, stdout);
@@ -110,13 +113,19 @@ int main(int argc, char **argv) {
 }
 """
 
+MAIN_TEX_OUT4 = MAIN_TEX.replace("n * 3 * sizeof(float));", "n * 4 * sizeof(float));").replace(
+    "float *p = dst + 3 *", "float *p = dst + 4 *").replace(
+    "float3 o = transform", "float4 o = transform").replace(
+    "p[0] = o.x; p[1] = o.y; p[2] = o.z;", "p[0] = o.x; p[1] = o.y; p[2] = o.z; p[3] = o.w;").replace(
+    "fwrite(dst, sizeof(float), n * 3, stdout)", "fwrite(dst, sizeof(float), n * 4, stdout)")
+
 
 def run_dctl(dctl_text, code, workdir=None, luts=None, interp="tetrahedral"):
-    """Apply DCTL source to ACEScct (3, H, W); returns float64 (3, H, W). luts: {path as in DEFINE_LUT: (3, n, n, n)
-    lattice [channel, b, g, r]}; interp "tetrahedral" or "trilinear" (the application's project setting)."""
+    """Apply DCTL source to ACEScct (C, H, W), C=3 or 4 for a two-pass intermediate; returns float64. luts:
+    {path as in DEFINE_LUT: (3, n, n, n) lattice [channel, b, g, r]}; interp "tetrahedral" or "trilinear"."""
     if shutil.which("gcc") is None:
         raise RuntimeError("gcc not found")
-    _, h, w = code.shape
+    channels, h, w = code.shape
     luts = luts or {}
     with tempfile.TemporaryDirectory(dir=workdir) as tmp:
         defs, loads = [], []
@@ -130,7 +139,10 @@ def run_dctl(dctl_text, code, workdir=None, luts=None, interp="tetrahedral"):
                          f"cr_lutd_{name} = malloc(m * sizeof(float)); "
                          f"if (!fp || fread(cr_lutd_{name}, sizeof(float), m, fp) != m) return 3; fclose(fp); }}")
         text = DEFINE_LUT.sub("", dctl_text)
-        base = MAIN_TEX if "__TEXTURE__ p_TexR" in dctl_text else MAIN
+        out_ch = 4 if "__DEVICE__ float4 transform" in dctl_text else 3
+        base = (MAIN_TEX_OUT4 if out_ch == 4 else MAIN_TEX) if "__TEXTURE__ p_TexR" in dctl_text else MAIN
+        args = "tr, tg, tb" + (", ta" if "__TEXTURE__ p_TexA" in dctl_text else "")
+        base = base.replace("__IN__", str(channels)).replace("__TEXARGS__", args)
         main = base.replace("    int w = atoi", "\n".join(loads) + "\n    int w = atoi") if loads else base
         shim = SHIM + ("#define CR_TRILINEAR\n" if interp == "trilinear" else "") + LUT_SHIM + "\n".join(defs)
         src = Path(tmp) / "prog.c"
@@ -145,5 +157,5 @@ def run_dctl(dctl_text, code, workdir=None, luts=None, interp="tetrahedral"):
         r = subprocess.run([str(exe), str(w), str(h)], input=data, capture_output=True, timeout=TIMEOUT)
         if r.returncode:
             raise RuntimeError(f"DCTL harness failed ({r.returncode})")
-        out = np.frombuffer(r.stdout, dtype=np.float32).reshape(h, w, 3)
+        out = np.frombuffer(r.stdout, dtype=np.float32).reshape(h, w, out_ch)
     return out.transpose(2, 0, 1).astype(np.float64)

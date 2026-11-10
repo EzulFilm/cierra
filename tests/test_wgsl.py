@@ -101,8 +101,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     h = cr_hash(h, bitcast<u32>(ix)); h = cr_hash(h, bitcast<u32>(iy)); h = cr_hash(h, %du);
     h = cr_hash(h, %du); h = cr_hash(h, 2u);
     let i = 3u * (gid.y * cr_size.x + gid.x);
-    _ = cr_src[i];  // the harness binds all three buffers
-    cr_dst[i] = f32(h >> 8u); cr_dst[i + 1u] = f32(h & 255u); cr_dst[i + 2u] = cr_cell_noise(ix, iy, %d, %d, 2);
+    // the harness binds all three buffers: cr_src must stay in the layout (a phony `_ = cr_src[i]` is optimised
+    // away by newer wgpu-native, which then rejects the 3-binding group); x * 0 is not folded for floats (NaN)
+    cr_dst[i] = f32(h >> 8u) + 0.0f * cr_src[i]; cr_dst[i + 1u] = f32(h & 255u); cr_dst[i + 2u] = cr_cell_noise(ix, iy, %d, %d, 2);
 }
 """ % (frame, seed, frame, seed)
     w, hgt = 96, 8

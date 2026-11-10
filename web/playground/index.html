@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cierra Playground</title>
+<style>
+  :root { --bg: #f6f6f4; --panel: #ffffff; --ink: #1d1f23; --muted: #6a6f78; --line: #d9dbe0; --accent: #2b5fd9;
+          --bad: #b3261e; --ok: #1a7a3a; --scope: #111418; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15171b; --panel: #1d2026; --ink: #e8e9ec; --muted: #9aa0aa;
+          --line: #30343c; --accent: #7aa2ff; --bad: #ff8a80; --ok: #7bd88f; --scope: #0b0d10; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; gap: 12px; align-items: baseline; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .muted { color: var(--muted); font-size: 12px; }
+  main { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: 12px; padding: 12px 16px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-width: 0; }
+  textarea { width: 100%; height: 360px; font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; background: var(--bg);
+             color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 8px; resize: vertical; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  button, select { font: inherit; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #status { font-size: 12px; white-space: pre-wrap; margin-top: 6px; color: var(--muted); }
+  #status.bad { color: var(--bad); } #status.ok { color: var(--ok); }
+  #drop { border: 2px dashed var(--line); border-radius: 6px; padding: 8px; text-align: center; color: var(--muted); }
+  #drop.over { border-color: var(--accent); color: var(--accent); }
+  .views { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 600px) { .views { grid-template-columns: 1fr; } }
+  canvas.pic { width: 100%; height: auto; background: #000; border-radius: 4px; display: block; }
+  .scopes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+  @media (max-width: 600px) { .scopes { grid-template-columns: 1fr; } }
+  .scopes canvas { width: 100%; aspect-ratio: 4 / 3; background: var(--scope); border-radius: 4px; display: block; }
+  .label { font-size: 11px; color: var(--muted); margin: 4px 0 2px; text-transform: uppercase; letter-spacing: .04em; }
+  #nogpu { display: none; color: var(--bad); padding: 8px 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cierra Playground</h1>
+  <span class="muted">paste a program, drop a frame: the grade runs in your browser on WebGPU (the program's WGSL shader + its output transform), scopes live</span>
+</header>
+<div id="nogpu">This browser has no WebGPU. Use Chrome / Edge 113+, Safari 26 or Firefox 141+.</div>
+<main>
+  <section class="panel">
+    <div class="label">Program</div>
+    <textarea id="src" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="primary" id="run">Grade (Ctrl+Enter)</button>
+      <label><input type="checkbox" id="live" checked> live</label>
+      <button id="share">Copy share link</button>
+    </div>
+    <div id="status"></div>
+    <div class="label" style="margin-top:12px">Frame</div>
+    <div class="row">
+      <select id="builtin"></select>
+    </div>
+    <div id="drop">drop an image here (PNG, JPEG, TIFF, .npy), or <label style="text-decoration:underline;cursor:pointer">choose<input type="file" id="file" hidden></label></div>
+  </section>
+  <section class="panel">
+    <div class="views">
+      <div><div class="label">Ungraded (same output transform)</div><canvas class="pic" id="before"></canvas></div>
+      <div><div class="label">Graded</div><canvas class="pic" id="after"></canvas></div>
+    </div>
+    <div class="scopes">
+      <div><div class="label">Waveform (luma)</div><canvas id="wave" width="360" height="270"></canvas></div>
+      <div><div class="label">Vectorscope</div><canvas id="vec" width="360" height="270"></canvas></div>
+      <div><div class="label">Histogram (R, G, B)</div><canvas id="hist" width="360" height="270"></canvas></div>
+    </div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

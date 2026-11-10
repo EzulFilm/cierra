@@ -8,7 +8,8 @@ Providers are pluggable: anything with `complete(system, user) -> str` (and opti
 model / tokens / seconds / cost_usd of the last call). make_provider() picks one:
   CIERRA_DRIVER      auto (default): an open-weight server when CIERRA_LLM_URL is set, else the Anthropic API when
                      ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN is set, else the deterministic rules driver;
-                     "openweight", "anthropic" (e.g. an `ant auth login` profile) or "rules" force one.
+                     "openweight", "anthropic" (e.g. an `ant auth login` profile) or "rules" force one; "relay"
+                     answers through files in CIERRA_RELAY_DIR (RelayProvider: a person or a chat plays the model).
   CIERRA_LLM_URL     base URL of an OpenAI-compatible server for open-weight models (vLLM, llama.cpp server, Ollama),
                      e.g. http://localhost:8000/v1; CIERRA_MODEL is then the served model name (e.g.
                      Qwen/Qwen2.5-7B-Instruct). CIERRA_GPU_USD_PER_HOUR (optional) prices its time for the budget;
@@ -392,11 +393,48 @@ class OpenWeightProvider:
         return data["choices"][0]["message"]["content"] or ""
 
 
+class RelayProvider:
+    """A model outside this process (a person, or an assistant chat on the same machine) answers through files.
+    CIERRA_RELAY_DIR holds system.txt (written once) and, per call, NNN_prompt.txt (the user turn); the provider
+    then waits for NNN_reply.txt. The reply side sees exactly what an API model would see: text and numbers, never
+    pixels. CIERRA_RELAY_MODEL names who answers (recorded in usage), CIERRA_RELAY_TIMEOUT (seconds, default 6 h)."""
+
+    def __init__(self, folder=None, model=None, timeout=None):
+        from pathlib import Path
+        self.dir = Path(folder or os.environ.get("CIERRA_RELAY_DIR") or "")
+        if not str(folder or os.environ.get("CIERRA_RELAY_DIR") or ""):
+            raise ValueError("the relay driver needs CIERRA_RELAY_DIR")
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.model = model or os.environ.get("CIERRA_RELAY_MODEL") or "relay"
+        self.timeout = float(timeout or os.environ.get("CIERRA_RELAY_TIMEOUT") or 6 * 3600)
+        self.n, self.last_usage = len(list(self.dir.glob("*_prompt.txt"))), {}
+
+    def complete(self, system, user, temperature=None):
+        sys_file = self.dir / "system.txt"
+        if not sys_file.exists() or sys_file.read_text() != system:
+            name = sys_file if not sys_file.exists() else self.dir / f"system_{self.n + 1:03d}.txt"
+            name.write_text(system)
+        self.n += 1
+        tag = f"{self.n:03d}"
+        (self.dir / f"{tag}_prompt.txt").write_text(user + (f"\n[temperature {temperature}]" if temperature else ""))
+        reply = self.dir / f"{tag}_reply.txt"
+        t0 = time.monotonic()
+        while not reply.exists():
+            if time.monotonic() - t0 > self.timeout:
+                raise TimeoutError(f"no reply in {reply} after {self.timeout:.0f} s")
+            time.sleep(1.0)
+        time.sleep(0.2)  # a writer that is still closing the file
+        self.last_usage = {"model": self.model, "seconds": round(time.monotonic() - t0, 1), "cost_usd": 0.0}
+        return reply.read_text()
+
+
 def make_provider(driver=None):
     """The provider CIERRA_DRIVER asks for (see the module doc); auto falls back to the rules driver without a key."""
     driver = driver or os.environ.get("CIERRA_DRIVER") or "auto"
     if driver == "rules":
         return RulesProvider()
+    if driver == "relay":
+        return RelayProvider()
     if driver == "openweight" or (driver == "auto" and os.environ.get("CIERRA_LLM_URL")):
         return OpenWeightProvider()
     if driver == "anthropic" or (driver == "auto" and (os.environ.get("ANTHROPIC_API_KEY")
@@ -404,7 +442,7 @@ def make_provider(driver=None):
         return AnthropicProvider()
     if driver == "auto":
         return RulesProvider()
-    raise ValueError(f"unknown CIERRA_DRIVER {driver!r} (auto, openweight, anthropic, rules)")
+    raise ValueError(f"unknown CIERRA_DRIVER {driver!r} (auto, openweight, anthropic, rules, relay)")
 
 
 class ScriptedProvider:
@@ -507,14 +545,16 @@ def loop_status(records):
 
 def grade_loop(notes, image, provider, history, input="linear_rec709", reference=None, start=None, max_iters=4,
                target_de=1.0, width=480, log=print, host=None, aux=None, budget_usd=None, revise=None,
-               bounded=None, code_range="full", against="ungraded", video_frame=None):
+               bounded=None, code_range="full", against="ungraded", video_frame=None, viewing_width=None,
+               checks=None):
     """Run the loop. image: (3, H, W) in `input`, decoded from `code_range` codes (both recorded in each history
     entry, with video_frame when the image is a video's frame); reference: optional display image (same framing) of
     the look to reach; host: what the host provides, told to the model and used for linting (frames = clip length,
     planes, segment_ids with their meanings in segment_names, targets such as ["dctl", "lut"]); aux: the planes themselves
     ({"depth": (H, W) metres, "segments": (H, W) ints}, at the preview size). Returns (best Program or None,
     list of iteration records). budget_usd (default CIERRA_BUDGET_USD or 2.00): once the provider's recorded cost
-    reaches it, the remaining iterations use the rules driver.
+    reaches it, the remaining iterations use the rules driver. viewing_width (default None = width) box-downsamples
+    each rendered output and the reference before every score / probe / damage measurement; rendering still uses width.
 
     Revision (revise, default on; CIERRA_REVISE=0 turns it off): every round's prompt opens with the notes not met yet
     (cierra.notes note checks), the node causing each WRONG WAY note (found by switching nodes off one at a time) and
@@ -536,7 +576,10 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
 
     Bounds (bounded, default on; CIERRA_BOUND=0 turns it off): every accepted reply has its values pulled inside the
     tuner's bounds (cierra.tuner.bound: caps around neutral, non-decreasing curves, rule nodes on their own side)
-    before it is measured; what moved goes into the record ("capped") and the next round's feedback."""
+    before it is measured; what moved goes into the record ("capped") and the next round's feedback.
+
+    checks: the notes restated in the check phrases (cierra.notes.translate_notes). When given, the note checks, the
+    feedback and the revision text come from it and the free-form notes are only shown to the model, never parsed."""
     from .format import program_hash
     from .notes import (attribute, failing, measure_notes, probes_for, regions, report, revision_text, side_axes,
                         side_effects, unmeasured)
@@ -554,8 +597,14 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
     if ref is not None and ref.shape != img.shape:
         raise ValueError(f"reference preview {ref.shape} does not match the image preview {img.shape}")
 
+    def viewing(d):
+        return d if viewing_width is None else preview(d, viewing_width)
+
+    ref = viewing(ref) if ref is not None else None
+
     def render_fn(prog):
-        return render(prog, img, input=input, px_scale=img.shape[-1] / prog.reference_width, aux=aux)
+        out = render(prog, img, input=input, px_scale=img.shape[-1] / prog.reference_width, aux=aux)
+        return viewing(out)
 
     def check(src):
         prog, warnings = _check_reply(src)
@@ -577,7 +626,11 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
     # note checks: probes on regions of the ungraded frame (the start program without its graph), compared round by
     # round against the ungraded frame or, from a look, the look; "previous" starts from the start program itself
     base_out = render_fn(ungraded(current))
-    probes, regs = probes_for(notes), regions(base_out)
+    # what the notes are measured by: the notes themselves, or `checks` when the caller has restated them in the check
+    # phrases (a translation). Free-form notes match check words by accident ("do not lift the floor" reads as
+    # "brighter"), which put wrong lines into the model's feedback (found on a blind set, 2026-11-10).
+    measured = notes if checks is None else checks
+    probes, regs = probes_for(measured), regions(base_out)
     prev_vals = measure_notes(probes, out, regs)
     base_vals = prev_vals if from_look else measure_notes(probes, base_out, regs)
     sides, side_base = side_axes(probes), (out if from_look else base_out)  # qualities no note asks about
@@ -585,7 +638,7 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
     if probes:
         feedback["note_checks"] = [f"{row[2]} ({row[5]}): {base_name} {round(base_vals[row[1]], 4)}"
                                    for row in probes]
-    missing = unmeasured(notes)
+    missing = unmeasured(notes) if checks is None else []  # with a translation, the raw note is not parsed at all
     if missing:
         feedback["notes_not_measured"] = missing
     if ref is not None:
@@ -659,7 +712,8 @@ def grade_loop(notes, image, provider, history, input="linear_rec709", reference
         m = analysis.measure(out, ref)
         entry = history.commit(prog, message, m, parent_prog=current,
                                source={"input": input, "range": code_range,
-                                       **({} if video_frame is None else {"frame": video_frame})})
+                                       **({} if video_frame is None else {"frame": video_frame}),
+                                       **({} if viewing_width is None else {"viewing_width": out.shape[-1]})})
         now_vals = measure_notes(probes, out, regs)
         rows, note_lines = report(probes, base_vals, prev_vals, now_vals, base_name)
         side_rows, side_lines = side_effects(sides, side_base, out, regs, base_name)

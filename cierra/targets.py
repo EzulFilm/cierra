@@ -69,6 +69,7 @@ def _pixel_shader_reasons(node, target):
 # width may be at most DCTL_TAP_RADIUS px, so (2 r + 1)^2 <= 625 taps at the reference width (4x at twice the width).
 DCTL_TAP_OPS = ("blur", "sharpen", "glow", "halation", "diffusion")
 DCTL_TAP_RADIUS = 12
+DCTL_LUMA_OPS = ("sharpen", "local_contrast", "highlights_shadows")
 
 
 def dctl_tap_radius(node):
@@ -84,9 +85,18 @@ def dctl_tap_node(node):
     return node.call.name in DCTL_TAP_OPS and dctl_tap_radius(node) <= DCTL_TAP_RADIUS
 
 
+def dctl_luma_node(node):
+    """A luma Gaussian emitted as horizontal-alpha and vertical-combine DCTLs. Small sharpen keeps the direct taps."""
+    return node.call.name in DCTL_LUMA_OPS and not dctl_tap_node(node)
+
+
+def dctl_spatial_node(node):
+    return dctl_tap_node(node) or dctl_luma_node(node)
+
+
 def dctl_node_reasons(node):
     out = _pixel_shader_reasons(node, "DCTL v0")
-    if dctl_tap_node(node):
+    if dctl_spatial_node(node):
         out = [r for r in out if not r.startswith(f"node {node.id}: {node.call.name}() is spatial")]
     elif node.call.name in DCTL_TAP_OPS:
         out = [r + f" (wider than the DCTL's {DCTL_TAP_RADIUS} px kernel radius)" if " is spatial" in r else r
@@ -99,7 +109,7 @@ def dctl_tap_reasons(prog, g):
     it on every sampled pixel), and no carried key (key(node)) read in this graph. Uses are counted, not nodes: the
     same node twice is two neighbour-sampling passes."""
     from .walk import graph_refs
-    uses = [r for r in graph_refs(g) if dctl_tap_node(prog.nodes[r])]
+    uses = [r for r in graph_refs(g) if dctl_spatial_node(prog.nodes[r])]
     if not uses:
         return []
     top = g.items if isinstance(g, A.Serial) else [g]

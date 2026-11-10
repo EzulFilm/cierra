@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- Web playground (`web/playground`, `tools/playground_server.py`): paste a program, pick or drop a frame, and the
+  grade, its output transform and scopes run in the browser on WebGPU. `tools/build_playground_static.py` builds a
+  version with no server, where Cierra's compiler runs in the browser through Pyodide. Measured against the reference
+  engine in headless Chromium (`tools/playground_parity.py`): shader max 0.003 dE00, on screen p99.9 0.36.
+- Tuner damage guard (on by default; `CIERRA_TUNER_GUARD=0` restores the old tuner): a step that adds a damage flag is
+  refused and the best undamaged step kept; then a node, or a pair of nodes, that causes a flag the program started
+  with is eased toward neutral when that loses no met check.
+- `cierra/assist.py`: the checked route for an assistant (checker and bounds, damage gate, note checks, DCTL compile,
+  a pre-flight of the compiled DCTL on the frame, a package with file hashes, and a check of the host's own stills).
+  `cierra/hosts/sim.py` simulates a host for tests; no grading application has run it yet.
+- `cierra.compile.amf.export_amf`: the look as a CLF in ACES2065-1 and an ACES Metadata File (AMF v2.0) with the
+  camera input ID, the look file's hash and the ACES 2.0 output ID; read back through OpenColorIO.
+- DCTL for Rec.709 projects: the ACES 2.0 output LUT is 97^3 and fitted for tetrahedral interpolation (was 65^3
+  sampled); `--lut-size` default 97.
+- `cierra.qc.intended_black_lift` and `damage(..., allow=)`: a look can state its own shadow lift, which the damage
+  gate then allows on top of its threshold.
+- Relay driver (`CIERRA_DRIVER=relay`, `CIERRA_RELAY_DIR`): a person or another program answers the loop's prompts
+  through files. `tools/relay_eval.py` runs an evaluation that way; `tools/bench_notes.py` scores any run by outcome
+  (right way and undamaged, damaged, missed); `tools/replay_tuner.py` re-tunes a stored run.
+- Fixed: temporal `align` could move a still, noisy frame by a fraction of a pixel (the sub-pixel refinement is now
+  kept only when it lowers the match error by a tenth).
+- `cierra scopes clip.mov --from F0 --to F1 --step K`: numeric per-frame tone, histogram, waveform, vectorscope,
+  neutral-cast, skin and clipping measurements, with source frame numbers and mean-luma flicker across the selection.
+- `loop --viewing-width N`: render first, then box-downsample the output and reference to the viewing size for note
+  checks, damage, side effects and reference error; the width is recorded in history. Contrast note tolerances now use
+  5% of the frame's own mid-tone spread, capped by the previous fixed tolerance, so flat frames can register a move.
+- Temporal `align` refines the whole-pixel pan estimate to 1/8 pixel and resamples each neighbour once, bilinearly;
+  the patch-difference rejection of independent local motion is unchanged.
 - Note checks report side effects: each loop round measures the qualities no note asked about (warmth, brightness,
   mid-tone contrast, colourfulness around the frame's mean tint) and flags any that moved more than about 1 dE00 at
   display mid grey ("also moved, no note asked: brightness 0.31 -> 0.38"), so a note met by moving something else is
@@ -10,8 +38,11 @@
   12 px at the reference width, one such node per DCTL. It reads its neighbours through the texture entry point, and
   the nodes before it run again for every sampled pixel, so the result equals the engine within float32 (sharpen on
   Rec.709 video: 0.0004 code value). The radius scales with the frame width, so a 4K frame takes four times the
-  samples. `--split` starts a new DCTL before a second such node. Wider kernels and the other spatial ops are still
-  refused with the reason. Checked in the grading application (21.1): the texture-form DCTL compiles.
+  samples. `--split` starts a new DCTL before a second such node. Wide sharpen, local contrast and
+  highlights/shadows compile as two DCTLs on adjacent nodes: the first writes the horizontal luma Gaussian to alpha,
+  the second blurs alpha vertically and applies the op. Guided detail, denoise and wide RGB blurs/glows stay refused.
+  The two-pass result is checked against the engine through the CPU harness; the application's alpha hand-off is a
+  separate manual check. Checked in the grading application (21.1): the small-radius texture-form DCTL compiles.
 - DCTL for a normal Rec.709 project (`cierra dctl look.cierra out --in KIND [--out program|srgb|rec1886]`): the
   DCTL decodes its input to ACEScct first (Rec.709 / sRGB video, or a camera log: S-Log3 with S-Gamut3 or
   S-Gamut3.Cine, ARRI LogC3 and LogC4, V-Log, Apple Log, D-Log) and encodes the result for the display, so a grade

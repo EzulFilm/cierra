@@ -9,10 +9,10 @@ are not part of the DCTL. Everything is float32, constants are baked in, keyfram
 v0 coverage: every pointwise op and mask, plus position ops (vignette, grain) and window masks. One Gaussian node per
 DCTL (blur, sharpen, glow, halation, diffusion with a kernel radius int(3 sigma) of at most 12 px at the reference
 width) samples its neighbours through the texture entry point; the nodes before it in the top-level chain run again
-for every sampled pixel (cr_pre), so it equals the engine within float32. Wider kernels, the other spatial ops
-(local_contrast, guided_detail, denoise, highlights_shadows), temporal_denoise (it reads neighbouring frames),
-blurred mattes, depth / segment masks and photo_to_scene are refused; with split=True a top-level serial graph is cut
-into several DCTLs around them, and before a second Gaussian node.
+for every sampled pixel (cr_pre), so it equals the engine within float32. A wide sharpen, local_contrast or
+highlights_shadows becomes two DCTLs: horizontal luma blur in alpha, then vertical blur and the op. The other spatial
+ops, temporal_denoise, blurred mattes, depth / segment masks and photo_to_scene are refused; with split=True a
+top-level serial graph is cut into several DCTLs around them, and before a second spatial node.
 """
 
 import math
@@ -25,7 +25,7 @@ from ..engine import NEUTRAL_C, curve_tangents, hue_span, resolve, resolve_args
 from ..format import program_hash
 from ..ops import GREY, MASKS, OPS
 from ..parser import CONTROL
-from ..targets import dctl_node_reasons, dctl_tap_node, dctl_tap_reasons
+from ..targets import dctl_luma_node, dctl_node_reasons, dctl_spatial_node, dctl_tap_node, dctl_tap_reasons
 
 
 class DCTLError(ValueError):
@@ -485,6 +485,9 @@ class _Gen:
             self.funcs.append(self.pre_text)
             body = self.tap_node_fn(node)
             params = params + [("__TEXTURE__", t) for t in self.TEX.split(", ")]
+        elif node.id == getattr(self, "alpha_node", None):
+            body = self.luma_node_fn(node)
+            params = params + [("__TEXTURE__", "p_TexA")]
         else:
             body = self.op(node.id, node.call.name, a)
         mix = resolve(node.mix, self.frame)
@@ -539,7 +542,8 @@ class _Gen:
                 self.kv_done.add(g.name)
             counter[0] += 1
             v = f"c{counter[0]}"
-            tex = ", " + self.TEX if g.name in self.taps else ""
+            tex = (", " + self.TEX if g.name in self.taps else
+                   ", p_TexA" if g.name == getattr(self, "alpha_node", None) else "")
             body.append(self.decl((v, f"n_{g.name}({self.call_args(node, vin)}{tex})"), ty="float3"))
             return v
         if isinstance(g, A.Serial):
@@ -615,7 +619,7 @@ class _Gen:
         from ..walk import carried_keys, graph_nodes
         self.carry = {k for n in self.prog.nodes.values() for k in carried_keys(n.mask)}
         self.kv_done = set()
-        self.taps = {n.id for n in graph_nodes(self.prog, graph) if self.is_tap(n) and not self.reasons(n)}
+        self.taps = {n.id for n in graph_nodes(self.prog, graph) if dctl_tap_node(n) and not self.reasons(n)}
         if self.taps:  # one neighbour-sampling node: the nodes before it run in cr_pre, once per sampled pixel
             why = dctl_tap_reasons(self.prog, graph)
             if why:
@@ -665,8 +669,8 @@ class _Gen:
             self.in_done = True
         return "float3 c0 = cr_in(p_R, p_G, p_B);"
 
-    # ---------------------------------------------------------- neighbour sampling (G5): one Gaussian tap node
-    is_tap = staticmethod(dctl_tap_node)
+    # ---------------------------------------------------------- neighbour sampling (G5): one spatial node per part
+    is_tap = staticmethod(dctl_spatial_node)  # compile_parts counts direct taps and two-pass luma nodes
     TEX = "p_TexR, p_TexG, p_TexB"
 
     def pre_fn(self, graph):
@@ -747,6 +751,144 @@ class _Gen:
             lines.append("    o0 = a0; o1 = a1; o2 = a2;")
         return [x[4:] for x in lines]  # node_fn indents the body
 
+    # ---------------------------------------------------------- two-pass luma Gaussian (G5 B)
+    def luma_node_fn(self, node):
+        """Vertical half of a luma Gaussian. The previous DCTL's alpha holds its horizontally blurred input."""
+        a = resolve_args(node.call.args, self.frame)
+        name, sigma = node.call.name, a["radius_px"]
+        lines = [f"float sg = {f(sigma)} * p_scale;",
+                 "int rad = sg < 0.3f ? 0 : (int)_fmaxf(1.0f, _floorf(3.0f * sg));",
+                 "float a0 = 0.0f, ws = 0.0f;",
+                 "for (int j = -rad; j <= rad; j++) {",
+                 "    int yy = p_Y + j < 0 ? 0 : (p_Y + j > p_H - 1 ? p_H - 1 : p_Y + j);",
+                 "    float w = rad == 0 ? 1.0f : _expf(-0.5f * ((float)j / sg) * ((float)j / sg));",
+                 "    a0 += w * _tex2D(p_TexA, p_X, yy); ws += w;",
+                 "}",
+                 "a0 /= ws;",
+                 "float y = cr_luma(r, g, b);"]
+        if name == "sharpen":
+            lines += ["float dt = y - a0;",
+                      f"float cd = (dt > 0.0f ? 1.0f : (dt < 0.0f ? -1.0f : 0.0f)) * _fmaxf(_fabs(dt) - "
+                      f"{f(a['coring'])}, 0.0f);",
+                      f"o0 = r + {f(a['amount'])} * cd; o1 = g + {f(a['amount'])} * cd; o2 = b + {f(a['amount'])} * cd;"]
+        elif name == "local_contrast":
+            lines += [f"float dt = {f(a['amount'])} * (y - a0);"]
+            if a["protect_blacks"]:
+                lines += ["if (dt < 0.0f) dt *= cr_smoothstep(0.05f, 0.25f, y);"]
+            lines += ["o0 = r + dt; o1 = g + dt; o2 = b + dt;"]
+        else:
+            lines += ["float hi = cr_smoothstep(0.4635884f, 0.75f, a0);",
+                      "float lo = 1.0f - cr_smoothstep(0.15f, 0.4135884f, a0);",
+                      f"float dt = {f(a['highlights'] * 0.1)} * hi + {f(a['shadows'] * 0.1)} * lo;",
+                      "o0 = r + dt; o1 = g + dt; o2 = b + dt;"]
+        return lines
+
+    def output_tail(self, out):
+        if self.out_lut is None:
+            return out, []
+        from .dctl_wrap import LUT_NAME
+        lut, _, fn = self.out_lut
+        if fn:
+            self.funcs.insert(0, fn)
+        call = f"APPLY_LUT(cr_o.x, cr_o.y, cr_o.z, {LUT_NAME})" if lut else "cr_out(cr_o.x, cr_o.y, cr_o.z)"
+        return "cr_d", [self.decl(("cr_o", out), ty="float3"), self.decl(("cr_d", call), ty="float3")]
+
+    def luma_program(self, graph, pass_name, title=None, reference_width=None):
+        """One of the two DCTLs for a top-level luma Gaussian. RGB crosses unchanged in pass 1; alpha is its H blur."""
+        from ..walk import carried_keys, graph_nodes
+        items = graph.items if isinstance(graph, A.Serial) else [graph]
+        hits = [i for i, x in enumerate(items) if isinstance(x, A.Ref) and dctl_luma_node(self.prog.nodes[x.name])]
+        if len(hits) != 1:
+            raise self.Error(f"two-pass luma compile needs one luma Gaussian in the main chain, got {len(hits)}")
+        k = hits[0]
+        node = self.prog.nodes[items[k].name]
+        prefix = A.Serial(list(items[:k])) if k else A.Pass()
+        rest = A.Serial(list(items[k:])) if k + 1 < len(items) else items[k]
+        self.carry = {x for n in self.prog.nodes.values() for x in carried_keys(n.mask)}
+        self.kv_done, self.taps, self.alpha_node = set(), set(), None
+        rw = float(reference_width or self.prog.reference_width)
+        head = self.header(title)
+        if pass_name == "horizontal":
+            for n in graph_nodes(self.prog, prefix):
+                self.node_fn(n)
+                if n.id in self.carry:
+                    self.key_fn(n)
+            body = []
+            out = self.graph(prefix, "c0", body, [0])
+            self.funcs.append("\n".join(
+                [self.fn_head("float3", "cr_pre", [("float", "p_R"), ("float", "p_G"), ("float", "p_B"),
+                                                   ("int", "p_X"), ("int", "p_Y"), ("int", "p_Width"),
+                                                   ("int", "p_Height"), ("float", "p_scale")]),
+                 "    " + self.input_line()] + ["    " + x for x in body] + [f"    return {out};", "}"]))
+            a = resolve_args(node.call.args, self.frame)
+            entry = [
+                "__DEVICE__ float4 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTURE__ p_TexR, "
+                "__TEXTURE__ p_TexG, __TEXTURE__ p_TexB) {",
+                f"    float p_scale = (float)p_Width / {f(rw)};",
+                "    float3 c0 = cr_pre(_tex2D(p_TexR, p_X, p_Y), _tex2D(p_TexG, p_X, p_Y), "
+                "_tex2D(p_TexB, p_X, p_Y), p_X, p_Y, p_Width, p_Height, p_scale);",
+                f"    float sg = {f(a['radius_px'])} * p_scale;",
+                "    int rad = sg < 0.3f ? 0 : (int)_fmaxf(1.0f, _floorf(3.0f * sg));",
+                "    float a0 = 0.0f, ws = 0.0f;",
+                "    for (int i = -rad; i <= rad; i++) {",
+                "        int xx = p_X + i < 0 ? 0 : (p_X + i > p_Width - 1 ? p_Width - 1 : p_X + i);",
+                "        float w = rad == 0 ? 1.0f : _expf(-0.5f * ((float)i / sg) * ((float)i / sg));",
+                "        float3 t = cr_pre(_tex2D(p_TexR, xx, p_Y), _tex2D(p_TexG, xx, p_Y), "
+                "_tex2D(p_TexB, xx, p_Y), xx, p_Y, p_Width, p_Height, p_scale);",
+                "        a0 += w * cr_luma(t.x, t.y, t.z); ws += w;",
+                "    }",
+                "    return make_float4(c0.x, c0.y, c0.z, a0 / ws);",
+                "}"]
+            head.insert(2, "// G5 B pass 1 of 2: prefix RGB unchanged; horizontal luma Gaussian in alpha.")
+        elif pass_name == "vertical":
+            self.alpha_node = node.id
+            for n in graph_nodes(self.prog, rest):
+                self.node_fn(n)
+                if n.id in self.carry:
+                    self.key_fn(n)
+            body = []
+            out = self.graph(rest, "c0", body, [0])
+            ret, tail = self.output_tail(out)
+            entry = [
+                "__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTURE__ p_TexR, "
+                "__TEXTURE__ p_TexG, __TEXTURE__ p_TexB, __TEXTURE__ p_TexA) {",
+                f"    float p_scale = (float)p_Width / {f(rw)};",
+                "    float3 c0 = make_float3(_tex2D(p_TexR, p_X, p_Y), _tex2D(p_TexG, p_X, p_Y), "
+                "_tex2D(p_TexB, p_X, p_Y));",
+                *["    " + x for x in body + tail],
+                f"    return {ret};",
+                "}"]
+            head.insert(2, "// G5 B pass 2 of 2: vertical alpha Gaussian, luma op, then suffix. Keep pass 1 immediately before.")
+        else:
+            raise ValueError(pass_name)
+        parts = ["\n".join(head)] + self.wrap_texts() + self.helpers() + self.funcs
+        return "\n\n".join(parts + ["\n".join(entry)]) + "\n"
+
+    def program_parts(self, graph, title=None, reference_width=None):
+        """Parts for one graph; a wide luma Gaussian expands to its horizontal and vertical DCTLs."""
+        from ..walk import graph_nodes
+        nodes = graph_nodes(self.prog, graph)
+        if not any(dctl_luma_node(n) for n in nodes):
+            return [{self.key: self.program(graph, title, reference_width), "graph": graph,
+                     "nodes": [n.id for n in nodes], "note": "whole graph"}]
+        items = graph.items if isinstance(graph, A.Serial) else [graph]
+        k = next(i for i, x in enumerate(items) if isinstance(x, A.Ref) and dctl_luma_node(self.prog.nodes[x.name]))
+        prefix = A.Serial(list(items[:k + 1]))
+        suffix = A.Serial(list(items[k:]))
+        out = []
+        for name, g, note in (
+                ("horizontal", prefix, "G5 B horizontal luma Gaussian in alpha; put the vertical pass on the next node"),
+                ("vertical", suffix, "G5 B vertical alpha Gaussian and luma op; put immediately after the horizontal pass")):
+            gen = _Gen(self.prog, self.frame, wrap_in=self.wrap_in, out_lut=self.out_lut)
+            out.append({self.key: gen.luma_program(graph, name, title, reference_width), "graph": graph,
+                        "nodes": [n.id for n in graph_nodes(self.prog, g)], "note": note, "pass": name})
+        return out
+
+    def program_part(self, graph, pass_name=None, title=None, reference_width=None):
+        if pass_name:
+            return self.luma_program(graph, pass_name, title, reference_width)
+        return self.program(graph, title, reference_width)
+
     def wrap_entry(self, out):
         """(input line, return expression) of the entry, with the wrapper's decode and output LUT."""
         if self.taps:
@@ -789,7 +931,7 @@ def compile_parts(gen, prog, frame=0, split=False):
         return "; ".join(gen.reasons(node))
 
     def compiled(g):
-        return gen(prog, frame).program(g)
+        return gen(prog, frame).program_parts(g)
 
     def taps(g):  # neighbour-sampling nodes the target can hold (DCTL: one per part, in the top-level chain)
         return [n for n in graph_nodes(prog, g) if gen.is_tap(n) and not gen.reasons(n)]
@@ -798,8 +940,10 @@ def compile_parts(gen, prog, frame=0, split=False):
     bad = [n for n in graph_nodes(prog, prog.graph) if gen.reasons(n)]
     struct = dctl_tap_reasons(prog, prog.graph) if taps(prog.graph) else []
     if not bad and not struct:
-        return [{"name": "main", key: compiled(prog.graph), "graph": prog.graph,
-                 "nodes": [n.id for n in graph_nodes(prog, prog.graph)], "note": "whole graph"}]
+        pieces = compiled(prog.graph)
+        for piece in pieces:
+            piece["name"] = "main" if len(pieces) == 1 else "main_" + piece["pass"]
+        return pieces
     if not split:
         raise gen.Error(f"cannot compile to {gen.target}: " + "; ".join([why(n) for n in bad] + struct)
                         + " (compile with --split / split=True to cut the graph around them)")
@@ -809,9 +953,12 @@ def compile_parts(gen, prog, frame=0, split=False):
     def flush():
         if run:
             g = run[0] if len(run) == 1 else A.Serial(list(run))
-            ids = [n.id for n in graph_nodes(prog, g)]
-            out.append({"name": f"part{len(out) + 1}", key: compiled(g), "graph": g,
-                        "nodes": ids, "note": "nodes " + ", ".join(ids)})
+            pieces = compiled(g)
+            for piece in pieces:
+                piece["name"] = f"part{len(out) + 1}"
+                if len(pieces) == 1:
+                    piece["note"] = "nodes " + ", ".join(piece["nodes"])
+                out.append(piece)
             run.clear()
 
     for item in items:
@@ -834,7 +981,7 @@ def compile_parts(gen, prog, frame=0, split=False):
     return out
 
 
-def compile_dctl(prog, frame=0, split=False, input="acescct", output="acescct", lut_size=65, stem="cierra"):
+def compile_dctl(prog, frame=0, split=False, input="acescct", output="acescct", lut_size=97, stem="cierra"):
     """Checked Program -> list of parts {"name", "dctl" (text or None), "graph", "nodes", "note"}. One part unless
     split=True cut a top-level serial graph around nodes DCTL v0 cannot express; those come back as parts with
     dctl None (do them with the host's own tools, or in Cierra's engine).
@@ -865,7 +1012,7 @@ def compile_dctl(prog, frame=0, split=False, input="acescct", output="acescct", 
         if not (first and input != "acescct") and not (last and lut):
             continue
         g = _Gen(prog, frame, wrap_in=input if first else "acescct", out_lut=lut if last else None)
-        part["dctl"] = g.program(part["graph"])
+        part["dctl"] = g.program_part(part["graph"], part.get("pass"))
         if last and lut and lut[0]:
             part["luts"] = {lut[0]: output_lattice(oc, lut_size)}
     return parts

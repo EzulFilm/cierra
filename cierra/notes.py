@@ -232,16 +232,27 @@ def verdict(want, tol, before, after):
     return "right way" if np.sign(delta) == want else "WRONG WAY"
 
 
+def probe_tolerance(row, before):
+    """Tolerance against `before`. Contrast uses 5% of the frame's own mid-tone spread, capped by the old fixed
+    tolerance, so a real move on a flat frame is not hidden by a tolerance meant for a contrasty one. This is a
+    frame-relative visibility proxy, not a perceptual threshold from the pending viewing study."""
+    if row[1] in ("contrast_up", "contrast_down") and np.isfinite(before):
+        return min(row[7], max(0.0005, 0.05 * before))
+    return row[7]
+
+
 def report(probes, base, prev, now, base_name="ungraded"):
     """Rows {key, label, unit, ungraded, previous, now, vs_ungraded, vs_previous} and plain-English lines. base is
     what a note is judged against: the ungraded frame, or the start look when the loop starts from one (base_name
     names it in the lines; the row keys stay "ungraded" / "vs_ungraded")."""
     rows, lines = [], []
     for row in probes:
-        key, label, unit, want, tol = row[1], row[2], row[5], row[6], row[7]
+        key, label, unit, want = row[1], row[2], row[5], row[6]
+        tol, prev_tol = probe_tolerance(row, base[key]), probe_tolerance(row, prev[key])
         r = {"note": label, "unit": unit, "ungraded": round(base[key], 4), "previous": round(prev[key], 4),
-             "now": round(now[key], 4), "vs_ungraded": verdict(want, tol, base[key], now[key]),
-             "vs_previous": verdict(want, tol, prev[key], now[key])}
+             "now": round(now[key], 4), "tolerance": round(tol, 6),
+             "vs_ungraded": verdict(want, tol, base[key], now[key]),
+             "vs_previous": verdict(want, prev_tol, prev[key], now[key])}
         rows.append(r)
         goal = {1: "should go up", -1: "should go down", 0: "should not rise"}[want]
         lines.append(f"{label} ({unit}, {goal}): {base_name} {r['ungraded']}, previous {r['previous']}, "
@@ -329,7 +340,8 @@ def attribute(prog, probes, render_fn, regs, now_vals):
         p2.nodes[node.id].enabled = False
         vals = measure_notes(probes, render_fn(p2), regs)
         for row in probes:
-            key, want, tol = row[1], row[6], row[7]
+            key, want = row[1], row[6]
+            tol = probe_tolerance(row, now_vals[key])
             gain = (vals[key] - now_vals[key]) * want if want else now_vals[key] - vals[key]
             if gain > tol and gain > gains.get(key, 0.0):
                 gains[key], out[key] = gain, node.id

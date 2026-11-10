@@ -99,3 +99,22 @@ def test_defaults(monkeypatch):
     monkeypatch.setenv("CIERRA_EFFORT", "medium")
     p = make_provider("anthropic")
     assert (p.model, p.effort) == ("claude-opus-5-5", "medium")
+
+
+def test_relay_provider_round_trip(tmp_path, monkeypatch):
+    import threading
+    from cierra.llm import RelayProvider, make_provider
+    monkeypatch.setenv("CIERRA_RELAY_DIR", str(tmp_path))
+    assert isinstance(make_provider("relay"), RelayProvider)
+    p = RelayProvider(tmp_path, model="test", timeout=20)
+
+    def answer():
+        import time
+        while not (tmp_path / "001_prompt.txt").exists():
+            time.sleep(0.05)
+        (tmp_path / "001_reply.txt").write_text("hello")
+    threading.Thread(target=answer).start()
+    assert p.complete("SYS", "USER") == "hello"
+    assert (tmp_path / "system.txt").read_text() == "SYS"
+    assert (tmp_path / "001_prompt.txt").read_text() == "USER"
+    assert p.last_usage["model"] == "test" and p.last_usage["cost_usd"] == 0.0

@@ -109,6 +109,17 @@ def _get(prog, knob):
     return float(v[i][1]) if isinstance(v[0], tuple) else float(v[i])
 
 
+def _neutral(prog, knob):
+    """The value that leaves the picture as it is for this knob, or None (pivots, radii and such have none)."""
+    nid, key, i, _, _ = knob
+    call = prog.nodes[nid].call
+    v = call.args[key]
+    if isinstance(v, tuple) and v and isinstance(v[0], tuple):
+        return float(v[i][0]) if call.name in DIAGONAL_OPS else POINT_NEUTRAL.get(call.name)
+    p = OPS[call.name].params[key].default
+    return (p[i] if isinstance(p, tuple) else p) if call.name in IDENTITY_DEFAULTS else None
+
+
 def _limits(prog, knob):
     """(lo, hi) for this value now: the op range, the cap around neutral, and (diagonal ops) its neighbours."""
     nid, key, i, lo, hi = knob
@@ -250,12 +261,21 @@ def note_weights(notes):
 
 
 def tune(prog, notes, image, input="linear_rec709", width=240, max_evals=800, penalty=0.02, log=None,
-         explain=True):
+         explain=True, damage_guard=None):
     """Return (tuned Program, info dict). image: the full frame in `input` (a preview is made here).
     Search: single-value moves; when none improves at a step size, moves of two values on different nodes together
     (the pairs that "warmer, highlights held" needs); then the step halves. explain: for each note still unmet, tune
     for that note alone; info["unmet"] says whether it conflicts with the other notes on this frame (met alone) or is
-    out of reach within the bounds (not even alone)."""
+    out of reach within the bounds (not even alone).
+    damage_guard (default on; CIERRA_TUNER_GUARD=0 turns it off): a step that lowers the cost is taken only if it adds
+    no damage flag (cierra.qc: clipping, crushed / milky blacks, posterisation, banding) the starting program did not
+    already have, measured on a 480 px preview as the scorer does; the search keeps the best undamaged step. A benchmark
+    found a third of the graded cases damaged by the tuner's pushes (2026-11-10). Then flags the start already had (a node
+    the model wrote) are eased: _ease_damage. damage_guard False (or CIERRA_TUNER_GUARD=0) restores the tuner of
+    2026-11-09 exactly."""
+    import os
+    if damage_guard is None:
+        damage_guard = os.environ.get("CIERRA_TUNER_GUARD", "1") != "0"
     img = preview(np.asarray(image, dtype=np.float64), width)
 
     def render_fn(p):
@@ -285,6 +305,28 @@ def tune(prog, notes, image, input="linear_rec709", width=240, max_evals=800, pe
     prog, added = add_rule_nodes(copy.deepcopy(prog), still)
     info["added_nodes"] = added
 
+    # the damage guard measures where the scorer and the loop do: a 480 px preview
+    from .qc import damage as _damage
+    gimg = preview(np.asarray(image, dtype=np.float64), 480)
+
+    def g_render(p):
+        return render(p, gimg, input=input, px_scale=gimg.shape[-1] / p.reference_width)
+
+    g_base = g_render(ungraded(prog))
+
+    def kinds(p):
+        return {f.split(":")[0] for f in _damage(g_base, g_render(p))["flags"]}
+
+    allowed = kinds(prog) if damage_guard else set()
+    info["guard"] = {"on": bool(damage_guard), "allowed": sorted(allowed), "refused_steps": 0}
+
+    def safe(p):
+        if not damage_guard:
+            return True
+        ok = kinds(p) <= allowed
+        info["guard"]["refused_steps"] += not ok
+        return ok
+
     # 2. coordinate search
     knobs = _knobs(prog)
     info["clamped"] = _repair(prog, knobs)
@@ -302,17 +344,19 @@ def tune(prog, notes, image, input="linear_rec709", width=240, max_evals=800, pe
                 if _get(trial, k) == cur:
                     continue
                 c, d = cost(trial, x0)
-                if c < best_cost - 1e-9:
+                if c < best_cost - 1e-9 and safe(trial):
                     best, best_cost, best_d, improved = trial, c, d, True
                     break
             if info["evals"] >= max_evals:
                 break
         if not improved:
-            improved = _pair_step(best, knobs, step, cost, x0, best_cost, max_evals, info)
+            improved = _pair_step(best, knobs, step, cost, x0, best_cost, max_evals, info, safe)
             if improved:
                 best, best_cost, best_d = improved
         if not improved:
             step /= 2
+    if damage_guard:
+        best = _ease_damage(best, knobs, g_render, g_base, probes, info)
     tuned = load(format_program(best))  # re-checked: every value is in range by construction
     from .qc import damage
     qc = damage(render_fn(ungraded(tuned)), render_fn(tuned))  # meeting the notes is not enough
@@ -328,7 +372,63 @@ def tune(prog, notes, image, input="linear_rec709", width=240, max_evals=800, pe
     return tuned, info
 
 
-def _pair_step(best, knobs, step, cost, x0, best_cost, max_evals, info):
+EASE = (0.25, 0.5, 0.75, 1.0)  # share of the way back to neutral, least first
+
+
+def _ease_damage(prog, knobs, g_render, g_base, probes, info):
+    """For each damage flag the program still carries (the guard allows the flags its start had: usually a node the
+    model wrote), find the node causing it (each node switched off in turn: the one whose removal clears the flag),
+    then ease that node's values toward neutral, least first (EASE). An easing is kept only when the flag clears, no
+    check that was met is lost (the scorer's own verdicts, cierra.notes.report, on the 480 px preview), and no other
+    flag appears. When no single node clears the flag, pairs of nodes are tried the same way (eased together).
+    Returns the program; info["eased"] lists what changed and info["ease_kept"] what could not be eased."""
+    from .notes import failing, measure_notes, regions, report
+    from .qc import damage
+    regs = regions(g_base)
+    b = measure_notes(probes, g_base, regs)
+
+    def state(p):
+        out = g_render(p)
+        flags = {f.split(":")[0] for f in damage(g_base, out)["flags"]}
+        rows, _ = report(probes, b, b, measure_notes(probes, out, regs))
+        bad = {r["note"] for r in failing(rows)}
+        return flags, {r["note"] for r in rows} - bad
+
+    flags, met = state(prog)
+    info["eased"], info["ease_kept"] = [], []
+    import itertools
+    nodes = sorted({k[0] for k in knobs})
+    for flag in sorted(flags):
+        cause = None
+        # one node, then pairs of nodes (two moves that together cause it: a flattening contrast plus a lift)
+        for group in [(n,) for n in nodes] + list(itertools.combinations(nodes, 2)):
+            trial = copy.deepcopy(prog)
+            for nid in group:
+                trial.nodes[nid].enabled = False
+            if flag not in state(trial)[0]:
+                cause = group
+                break
+        if cause is None:
+            info["ease_kept"].append(f"{flag}: no node or pair of nodes causes it")
+            continue
+        mine = [k for k in knobs if k[0] in cause and _neutral(prog, k) is not None]
+        done = False
+        for f in EASE:
+            trial = copy.deepcopy(prog)
+            for k in mine:
+                n = _neutral(prog, k)
+                _set(trial, k, n + (1 - f) * (_get(prog, k) - n))
+            fl, mt = state(trial)
+            if flag not in fl and fl <= flags and met <= mt:
+                prog, flags, met, done = trial, fl, mt, True
+                info["eased"].append(f"{flag}: node(s) {', '.join(cause)} eased {int(f * 100)} % toward neutral")
+                break
+        if not done:
+            info["ease_kept"].append(f"{flag}: easing node(s) {', '.join(cause)} would lose a check or add a flag")
+    return prog
+
+
+def _pair_step(best, knobs, step, cost, x0, best_cost, max_evals, info, safe=lambda p: True):
     """One move of two values on different nodes together (each +/- step); the first that lowers the cost wins.
     Returns (program, cost, deficits) or None."""
     for a in range(len(knobs)):
@@ -346,7 +446,7 @@ def _pair_step(best, knobs, step, cost, x0, best_cost, max_evals, info):
                     if _get(trial, ka) == _get(best, ka) or _get(trial, kb) == _get(best, kb):
                         continue
                     c, d = cost(trial, x0)
-                    if c < best_cost - 1e-9:
+                    if c < best_cost - 1e-9 and safe(trial):
                         return trial, c, d
     return None
 

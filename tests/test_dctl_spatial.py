@@ -96,3 +96,73 @@ def test_carried_key_elsewhere_does_not_block_a_tap_part():
                 "  mask key(a)\nnode g = glow(radius_px: 40)\nnode b = blur(radius_px: 1)\ngraph a -> k -> g -> b\n")
     parts = compile_dctl(prog, split=True)
     assert [p["nodes"] for p in parts] == [["a", "k"], ["g"], ["b"]] and parts[2]["dctl"]
+
+
+# ---------------------------------------------------------------- two-pass luma Gaussian (G5 B)
+LUMA_OPS = {
+    "sharpen": "sharpen(amount: 1.5, radius_px: 6, coring: 0.002)",
+    "local_contrast": "local_contrast(amount: 0.6, radius_px: 40, protect_blacks: true)",
+    "highlights_shadows": "highlights_shadows(highlights: -0.8, shadows: 0.5, radius_px: 12)",
+}
+
+
+def run_parts(parts, img):
+    for part in parts:
+        assert part["dctl"] is not None, part["note"]
+        img = run(part, img)
+    return img
+
+
+@gcc
+@pytest.mark.parametrize("op", sorted(LUMA_OPS))
+def test_two_pass_luma_matches_engine_with_prefix_suffix_mask_and_mix(op):
+    """The horizontal pass returns prefix RGB plus alpha; the vertical pass applies the op and suffix. A wide radius
+    exercises the path small sharpen never uses, with the same separable kernel and replicated edges as the engine."""
+    src = ("cierra 0.1\nreference_width 64\nnode v = vignette(amount: 0.4)\nnode e = exposure(stops: 0.4)\n"
+           f"node s = {LUMA_OPS[op]}\n  mix 0.8\n  mask luma(range: 0.2..1.2, soft: 0.05)\n"
+           "node c = saturation(amount: 1.2)\ngraph v -> e -> s -> c\noutput acescct()\n")
+    prog = load(src)
+    horizontal, vertical = compile_dctl(prog)
+    assert (horizontal["pass"], vertical["pass"]) == ("horizontal", "vertical")
+    assert "float4 transform" in horizontal["dctl"] and "p_TexA" in vertical["dctl"]
+    img = crop()
+    mid = run(horizontal, img)
+    assert mid.shape[0] == 4
+    prefix = load("cierra 0.1\nreference_width 64\nnode v = vignette(amount: 0.4)\n"
+                  "node e = exposure(stops: 0.4)\ngraph v -> e\noutput acescct()\n")
+    assert np.abs(mid[:3] - grade_working(img, prefix)).max() < 2e-3
+    out = run(vertical, mid)
+    assert np.abs(out - grade_working(img, prog)).max() < 3e-3, np.abs(out - grade_working(img, prog)).max()
+
+
+@gcc
+def test_two_pass_luma_with_display_wrapper():
+    prog = load("cierra 0.1\nreference_width 64\nnode s = local_contrast(amount: 0.4, radius_px: 30)\n"
+                "graph s\noutput display_encode(eotf: gamma24)\n")
+    parts = compile_dctl(prog, input="rec1886_photo", output="program")
+    img = C.display_encode(crop(), "gamma24")
+    ref = C.display_encode(grade_working(C.input_to_working(img, "rec1886_photo")[0], prog), "gamma24")
+    assert np.abs(run_parts(parts, img) - ref).max() < 3e-3
+
+
+@gcc
+def test_split_expands_each_luma_node_and_keeps_small_taps_unchanged():
+    prog = load("cierra 0.1\nreference_width 64\nnode a = local_contrast(radius_px: 40)\n"
+                "node b = sharpen(amount: 0.8, radius_px: 1.5)\ngraph a -> b\noutput acescct()\n")
+    with pytest.raises(DCTLError, match="one per DCTL"):
+        compile_dctl(prog)
+    parts = compile_dctl(prog, split=True)
+    assert [p.get("pass") for p in parts] == ["horizontal", "vertical", None]
+    assert "float4 transform" in parts[0]["dctl"] and "cr_pre" in parts[2]["dctl"]
+    img = crop()
+    assert np.abs(run_parts(parts, img) - grade_working(img, prog)).max() < 3e-3
+
+
+def test_small_sharpen_stays_on_direct_taps_and_other_spatial_ops_are_still_refused():
+    small = load("cierra 0.1\nnode s = sharpen(radius_px: 1.5)\ngraph s\n")
+    part, = compile_dctl(small)
+    assert "float3 transform" in part["dctl"] and "p_TexA" not in part["dctl"]
+    for op in ("guided_detail()", "denoise()", "glow(radius_px: 40)", "blur(radius_px: 40)"):
+        prog = load(f"cierra 0.1\nnode s = {op}\ngraph s\n")
+        with pytest.raises(DCTLError, match="spatial"):
+            compile_dctl(prog)

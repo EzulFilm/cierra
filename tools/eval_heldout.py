@@ -66,7 +66,8 @@ def run_case(case, mode, driver, iters, out, log, translator="axes", structure="
         best = tuner_info = None
         if mode == "tuner" and structure == "model":
             notes = f"{case['notes']} (In short: {translated}.)" if translated else case["notes"]
-            best, more = grade_loop(notes, img, provider, hist, max_iters=1, log=log, revise=False)
+            best, more = grade_loop(notes, img, provider, hist, max_iters=1, log=log, revise=False,
+                                    checks=translated or None)
             recs += more
         if mode == "tuner":
             best, tuner_info = tune(best or load("cierra 0.1\n"), translated or "", img, log=log)
@@ -107,10 +108,11 @@ def main():
     ap.add_argument("--label", required=True)
     ap.add_argument("--iters", type=int, default=4)
     ap.add_argument("--cases", nargs="*", help="case ids (default all)")
-    ap.add_argument("--set", choices=("heldout", "freeform", "freeform_b"), default="heldout")
+    ap.add_argument("--set", default="heldout", help="heldout, freeform, freeform_b, ... (tests/data/heldout*.json)")
     a = ap.parse_args()
-    name = {"heldout": "heldout.json", "freeform": "heldout_freeform.json",
-            "freeform_b": "heldout_freeform_b.json"}[a.set]
+    name = "heldout.json" if a.set == "heldout" else f"heldout_{a.set}.json"
+    if not (ROOT / "tests" / "data" / name).exists():
+        ap.error(f"no note set {a.set!r} (tests/data/{name})")
     cases = json.loads((ROOT / "tests" / "data" / name).read_text())["cases"]
     if a.cases:
         cases = [c for c in cases if c["id"] in a.cases]

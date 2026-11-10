@@ -92,3 +92,18 @@ def test_grain_at_the_preview_size_amplified_by_a_steep_grade_is_not_banding():
         rgb = np.stack([sky, sky * 0.98, sky * 1.02]).clip(0, 1)
         r = damage(rgb, (0.5 + (rgb - 0.49) * 3).clip(0, 1))
         assert r["after"]["banding"] - r["before"]["banding"] < THRESHOLDS["banding_watch"], (lsb, seed, r["flags"])
+
+
+def test_a_look_states_its_black_lift_and_the_gate_allows_exactly_that():
+    import numpy as np
+    from cierra import load
+    from cierra.qc import check_program, intended_black_lift
+    img = frame("crowd")
+    lifted = load("cierra 0.1\noutput aces2(display: srgb)\nnode toe = wheels(master_lift: 0.08)\ngraph toe\n")
+    lift = intended_black_lift(lifted)
+    assert lift > 0.04
+    assert any(f.startswith("milky") for f in check_program(lifted, img)["flags"])
+    assert not any(f.startswith("milky") for f in check_program(lifted, img, allow={"milky": lift})["flags"])
+    assert intended_black_lift(load("cierra 0.1\noutput aces2(display: srgb)\n")) == 0.0
+    with pytest.raises(ValueError):
+        check_program(lifted, img, allow={"milky": 0.9})

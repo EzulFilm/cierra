@@ -236,3 +236,32 @@ def test_warmer_faces_that_cool_the_rest_are_flagged():
     warm = next(r for r in rows if r["axis"] == "warmth")
     assert warm["region"] == "rest" and warm["moved"] and warm["change"] < 0
     assert any("warmth on the rest of the frame (not the faces)" in line for line in lines)
+
+
+def test_contrast_tolerance_follows_the_frames_own_spread():
+    row = probes_for("more contrast")[0]
+    rows, _ = report([row], {"contrast_up": 0.03}, {"contrast_up": 0.03}, {"contrast_up": 0.032})
+    assert rows[0]["tolerance"] == 0.0015 and rows[0]["vs_ungraded"] == "right way"
+    rows, _ = report([row], {"contrast_up": 0.2}, {"contrast_up": 0.2}, {"contrast_up": 0.204})
+    assert rows[0]["tolerance"] == 0.005 and rows[0]["vs_ungraded"] == "no change"
+
+
+def test_scores_are_measured_at_the_viewing_size_after_rendering(tmp_path):
+    """A black/white checkerboard is 50% clipped at 8 px but uniform grey after box-downsampling to 4 px. The render
+    happens first, then every measurement is made at the requested viewing size; history records that size."""
+    yy, xx = np.mgrid[0:8, 0:8]
+    img = np.repeat(((xx + yy) % 2).astype(float)[None], 3, 0)
+    src = "cierra 0.1\ninput linear_rec709\noutput display_encode(eotf: srgb)\n"
+    # a reply equal to the start program is a "no change" round with no measurements: send a different program
+    # that leaves the pixels as they are
+    reply = f"```cierra\n{src}node same = exposure(stops: 0)\ngraph same\n```\nmessage: identity\n"
+    clipped = {}
+    for width in (None, 4):
+        hist = History(tmp_path / str(width))
+        _, recs = grade_loop("brighter", img, _Small([reply]), hist, start=src, max_iters=1, width=8,
+                             viewing_width=width, revise=False, log=lambda *_: None)
+        clipped[width] = recs[0]["measure"]["clipping"]["clipped_white_pct"]
+        if width is not None:
+            entry = json.loads((tmp_path / str(width) / "log.jsonl").read_text().splitlines()[0])
+            assert entry["source"]["viewing_width"] == 4
+    assert clipped[None] == 50 and clipped[4] == 0

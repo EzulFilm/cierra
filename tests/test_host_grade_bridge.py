@@ -205,6 +205,15 @@ def test_node_parts_cdl_dctl_and_refusal(tmp_path):
         node_parts(load("cierra 0.1\nnode a = exposure()\nnode b = contrast()\ngraph parallel(a, b)\n"), tmp_path, "p")
 
 
+def test_node_parts_gives_a_two_pass_luma_node_two_adjacent_host_nodes(tmp_path):
+    prog = load("cierra 0.1\nnode a = exposure(stops: 0.2)\nnode b = local_contrast(radius_px: 40)\ngraph a -> b\n")
+    parts = node_parts(prog, tmp_path, "look")
+    assert [(p["index"], p["node"], p["kind"]) for p in parts] == [
+        (1, "a", "dctl"), (2, "b", "dctl"), (3, "b", "dctl")]
+    assert "horizontal" in (tmp_path / parts[1]["file"]).read_text()
+    assert "p_TexA" in (tmp_path / parts[2]["file"]).read_text()
+
+
 def test_export_nodes_sets_each_node_and_verifies(tmp_path):
     parts = node_parts(PROG, tmp_path, "look")
     v = version_name(PROG)

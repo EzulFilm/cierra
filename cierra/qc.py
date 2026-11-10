@@ -53,11 +53,18 @@ def measure(d):
             "banding": round(banding_index(_near_480(d))[0], 4)}
 
 
-def damage(ungraded, graded, base="ungraded"):
+def damage(ungraded, graded, base="ungraded", allow=None):
     """{"flags": [...], "needs_human": bool, "before": measures, "after": measures} for two display images of the
-    same frame. base names the first one in the flags (the loop passes "start look" when it starts from a look)."""
+    same frame. base names the first one in the flags (the loop passes "start look" when it starts from a look).
+    allow: a look's stated, intended allowances added to the thresholds, e.g. {"milky": 0.06} for a film look whose
+    print black sits 0.06 above the ungraded black (measured by intended_black_lift); recorded with the look, never
+    guessed per frame."""
     m0, m1 = measure(ungraded), measure(graded)
-    t, flags = THRESHOLDS, []
+    t, flags = dict(THRESHOLDS), []
+    for k, v in (allow or {}).items():
+        if k not in t or not 0 <= v <= 0.3:
+            raise ValueError(f"allowance {k}={v}: a known threshold, 0..0.3")
+        t[k] = t[k] + v
     if m1["clipped"] - m0["clipped"] > max(t["clipped"], t["relative"] * m0["clipped"]):
         flags.append(f"clipped highlights: {m1['clipped']:.1f} % of pixels at white ({base} {m0['clipped']:.1f} %, "
                      f"allowed +{max(t['clipped'], t['relative'] * m0['clipped']):.1f})")
@@ -81,7 +88,25 @@ def damage(ungraded, graded, base="ungraded"):
     return {"flags": flags, "needs_human": bool(flags), "watch": watch, "before": m0, "after": m1}
 
 
-def check_program(prog, image, input=None, width=480):
+def intended_black_lift(prog, input="linear_rec709"):
+    """How far the look itself lifts the shadows on the display: on a neutral ramp of scene light through the shadows
+    (0 to about 3 stops under grey), the largest rise in display luma, program vs the same program without its graph,
+    where the ungraded ramp is still in the shadows (display luma <= 0.2). That is the look's own toe (a film print
+    black), measured on no particular frame: the "milky" allowance a look states (damage(..., allow={"milky": x}))."""
+    import copy
+
+    from .engine import render
+    lin = np.concatenate([[0.0], np.geomspace(1e-4, 0.025, 255)])
+    ramp = np.broadcast_to(lin[None, None, :], (3, 16, lin.size)).copy()
+    base = copy.copy(prog)
+    base.graph = None
+    y1 = _luma(render(prog, ramp, input=input)).mean(0)
+    y0 = _luma(render(base, ramp, input=input)).mean(0)
+    shadows = y0 <= 0.2
+    return max(0.0, float((y1 - y0)[shadows].max())) if shadows.any() else 0.0
+
+
+def check_program(prog, image, input=None, width=480, allow=None):
     """damage() of a program on a frame (rendered at a preview width; input defaults to the program's own)."""
     import copy
 
@@ -91,4 +116,4 @@ def check_program(prog, image, input=None, width=480):
     base = copy.copy(prog)  # ungraded = the same program without its graph: same input, photo decode and output
     base.graph = None
     small = preview(np.asarray(image, dtype=np.float64), width)
-    return damage(render(base, small, input=input), render(prog, small, input=input))
+    return damage(render(base, small, input=input), render(prog, small, input=input), allow=allow)

@@ -157,8 +157,19 @@ def output_fn(out_call):
     return "\n".join(lines)
 
 
-def output_lattice(out_call, size=65):
-    """(3, size, size, size) [channel, b, g, r]: ACEScct 0..1 -> display code values through out_call."""
-    from .lut import lattice
-    lat = lattice(size).reshape(3, size, size * size)
-    return C.output_from_working(lat, out_call).reshape(3, size, size, size)
+OUTPUT_LUT_SIZE = 97  # 65 sampled left up to 0.83 ΔE00 on the ACES 2.0 film looks (2026-11-10); 97 fitted: 0.48
+
+
+def output_lattice(out_call, size=OUTPUT_LUT_SIZE, fit_iters=20):
+    """(3, size, size, size) [channel, b, g, r]: ACEScct 0..1 -> display code values through out_call, fitted by
+    least squares for tetrahedral interpolation (cierra.compile.lut._fit; fit_iters 0 = sampled at the nodes).
+    Measured on the worst film look (teal_orange, S-Log3 in, 6 CC0 frames): 65 sampled max 0.83 / p99.9 0.47,
+    97 fitted max 0.48 / p99.9 0.26 ΔE00 (tetrahedral); trilinear 0.59 / 0.34 (the host's interpolation is not
+    checked yet)."""
+    from .lut import _fit, lattice
+
+    def fn(code):
+        return C.output_from_working(code, out_call)
+
+    lat = fn(lattice(size).reshape(3, size, size * size)).reshape(3, size, size, size)
+    return _fit(lat, fn, size, fit_iters) if fit_iters else lat

@@ -138,3 +138,17 @@ def test_bound_keeps_a_curve_monotone_after_restoring_a_looks_values():
     reply = load("cierra 0.1\nnode c = curve(points: [[0.3, 0.6], [0.4, 0.45]])\ngraph c\n")
     ys = [float(r[1]) for r in bound(reply, start=look)[0].nodes["c"].call.args["points"]]
     assert ys == sorted(ys), ys
+
+
+def test_damage_guard_never_adds_a_damage_flag():
+    """'much brighter' pushes exposure until the window clips; with the guard the tuner stops at the best step that
+    adds no flag (2026-11-10); without it the old behaviour is kept for comparison."""
+    from cierra.qc import check_program
+    from cierra.tuner import tune
+    from conftest import frame
+    img = frame("window_0")
+    start = load("cierra 0.1\noutput aces2(display: srgb)\nnode lift = exposure(stops: 0.2)\ngraph lift\n")
+    on, info = tune(start, "brighter, much brighter", img, damage_guard=True, explain=False)
+    off, _ = tune(start, "brighter, much brighter", img, damage_guard=False, explain=False)
+    assert info["guard"]["on"] and not check_program(on, img)["flags"], info["guard"]
+    assert check_program(off, img)["flags"] or info["guard"]["refused_steps"] == 0

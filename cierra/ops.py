@@ -247,7 +247,7 @@ _op("temporal_denoise", "spatial", "Temporal noise reduction: each pixel is aver
      "frames": P("int", 1, 4, 2, "frames", "neighbours on each side (2 = five frames in all)"),
      "noise": P("num", 0.001, 0.2, 0.02, "cv", "noise std at this node; patch differences above it count as motion"),
      "patch_px": P("num", 1.0, 20.0, 2.0, "px", "box radius of the compared patch"),
-     "align": P("bool", default=True, doc="undo a whole-frame shift (phase correlation, whole pixels) first")},
+     "align": P("bool", default=True, doc="undo a whole-frame shift (phase correlation, refined to 1/8 pixel) first")},
     aux=("frames",), **_SP)
 _op("highlights_shadows", "spatial", "Local tone from a blurred luma: highlights < 0 pulls bright areas down, "
     "shadows > 0 opens dark areas. 1.0 = 0.1 cv at full strength.",

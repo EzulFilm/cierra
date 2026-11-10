@@ -418,7 +418,7 @@ Operations:
     frames: int 1..4 [frames], default 2. neighbours on each side (2 = five frames in all)
     noise: num 0.001..0.2 [cv], default 0.02. noise std at this node; patch differences above it count as motion
     patch_px: num 1..20 [px], default 2.0. box radius of the compared patch
-    align: bool, default True. undo a whole-frame shift (phase correlation, whole pixels) first
+    align: bool, default True. undo a whole-frame shift (phase correlation, refined to 1/8 pixel) first
   highlights_shadows()  [spatial, spatial] Local tone from a blurred luma: highlights < 0 pulls bright areas down, shadows > 0 opens dark areas. 1.0 = 0.1 cv at full strength.
     highlights: num -3..3 [x], default 0.0. < 0 recover highlights
     shadows: num -3..3 [x], default 0.0. > 0 lift shadows

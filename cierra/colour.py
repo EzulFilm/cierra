@@ -244,6 +244,23 @@ def input_to_working(img, kind):
     raise ValueError(kind)
 
 
+def working_to_input(code, kind):
+    """ACEScct (3, H, W) -> code values of an input kind: the inverse of input_to_working for acescct, a camera log
+    (through OpenColorIO's ACES 2.0 studio config) and rec1886_photo (a video master: the ACES 2.0 Rec.709 picture
+    read back as the input). For tests and proofs that need a frame encoded as a camera would deliver it."""
+    if kind == "acescct":
+        return code
+    if kind == "rec1886_photo":
+        m = xp(code)
+        return m.clip(aces2_display(code, "rec1886"), 0, 1)
+    if kind not in CAMERA_INPUTS:
+        raise ValueError(f"no encoder for input {kind!r}")
+    import PyOpenColorIO as ocio
+    cfg = ocio.Config.CreateFromBuiltinConfig(ACES2_CONFIG)
+    proc = cfg.getProcessor(ocio.ColorSpaceTransform(src="ACEScct", dst=CAMERA_INPUTS[kind])).getDefaultCPUProcessor()
+    return _ocio_apply(proc, np.ascontiguousarray(code, dtype=np.float64))
+
+
 _CAM = {}
 
 

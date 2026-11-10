@@ -13,6 +13,7 @@
     python -m cierra track  look.cierra clip.mov --node NAME --from F0 --to F1 [--at F] [--step K] [-o out.cierra]
                             a node's window / box / graduated mask follows the picture: keys on its centre (and size,
                             angle with --motion similarity, the default); the program is rewritten in canonical form
+    python -m cierra scopes clip.mov [--from F0] [--to F1] [--step K] [--range R]  numeric per-frame scopes + flicker
 Images: .npy (3, H, W) float, or PNG / TIFF (8, 16-bit or float) read as display codes: the program's own input
 when it takes display codes (srgb_photo, rec1886_photo), else srgb_photo; --input overrides.
 --range full|video says how the input image's integer codes are coded: full (default: 0..2^n-1 is 0..1) or video
@@ -199,8 +200,8 @@ def main(argv=None):
     d.add_argument("--out", dest="wrap_out", choices=WRAP_OUTPUTS,
                    help="encode for a display through a 3D LUT written next to the DCTL: the program's own output, "
                         "or srgb / rec1886; default acescct, or program when --in is not acescct")
-    d.add_argument("--lut-size", type=int, default=65, choices=range(2, 130), metavar="2..129",
-                   help="points per side of the output LUT (default 65)")
+    d.add_argument("--lut-size", type=int, default=97, choices=range(2, 130), metavar="2..129",
+                   help="points per side of the output LUT (default 97, fitted for tetrahedral interpolation)")
     w = sub.add_parser("wgsl")
     w.add_argument("program"), w.add_argument("out_dir")
     w.add_argument("--frame", type=FRAME, default=0), w.add_argument("--split", action="store_true")
@@ -228,6 +229,8 @@ def main(argv=None):
     lo.add_argument("--frame", type=FRAME, help=FRAME_HELP)
     lo.add_argument("--against", choices=("ungraded", "start"), default="ungraded",
                     help="judge the notes against the ungraded frame (default) or the --start program, e.g. a look")
+    lo.add_argument("--viewing-width", type=_int_in(64, 16384),
+                    help="score after box-downsampling the render to this width (default: the 480 px render preview)")
     tr = sub.add_parser("track", help="make a node's mask follow the picture of a video clip (keys on its centre)")
     tr.add_argument("program"), tr.add_argument("clip")
     tr.add_argument("--node", required=True, help="the node whose window / box / graduated mask is tracked")
@@ -246,6 +249,12 @@ def main(argv=None):
     tr.add_argument("--tolerance", type=float, default=0.5,
                     help="pixels the keys may miss the track by between keyframes (0.5)")
     tr.add_argument("-o", "--out", help="write here instead of rewriting the program")
+    sc = sub.add_parser("scopes", help="numeric per-frame scopes and mean-luma flicker of a still or video")
+    sc.add_argument("image")
+    sc.add_argument("--from", dest="first", type=FRAME, default=0, help="first frame (default 0)")
+    sc.add_argument("--to", dest="last", type=FRAME, help="last frame (default: only --from)")
+    sc.add_argument("--step", type=_int_in(1, 1000), default=1, help="measure every K-th frame")
+    sc.add_argument("--range", dest="code_range", choices=RANGES, help=RANGE_HELP)
     a = ap.parse_args(argv)
     if a.device:
         from .backend import gpu_unavailable
@@ -357,10 +366,24 @@ def _run(a):
         img = read_image(a.image, rng, frame)
         best, recs = grade_loop(a.notes, img, make_provider(a.driver), History(a.history),
                                 input=a.input, reference=ref, start=start, max_iters=a.iters, code_range=rng,
-                                against=a.against, video_frame=frame if is_video(a.image) else None)
+                                against=a.against, video_frame=frame if is_video(a.image) else None,
+                                viewing_width=a.viewing_width)
         print(json.dumps(recs, indent=1))
         if best is not None:
             print(format_program(best))
+    elif a.cmd == "scopes":
+        from .scopes import timeline_scopes, video_scopes
+        from .video import is_video, VideoError
+        try:
+            if is_video(a.image):
+                report = video_scopes(a.image, a.first, a.last, a.step, input_range(a.image, a.code_range))
+            else:
+                if a.first or a.last not in (None, 0) or a.step != 1:
+                    raise ImageInputError(f"{a.image}: --from / --to / --step are for video input, not a still image")
+                report = timeline_scopes([(0, read_image(a.image, a.code_range, 0))])
+        except (VideoError, ValueError) as e:
+            raise ImageInputError(str(e)) from None
+        print(json.dumps(report, indent=1))
     elif a.cmd == "track":
         from .checker import load
         from .track import TrackError, track_program

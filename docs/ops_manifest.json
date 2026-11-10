@@ -2583,7 +2583,7 @@
    "params": {
     "align": {
      "default": true,
-     "doc": "undo a whole-frame shift (phase correlation, whole pixels) first",
+     "doc": "undo a whole-frame shift (phase correlation, refined to 1/8 pixel) first",
      "keyframable": false,
      "kind": "bool",
      "required": false,
