@@ -45,8 +45,8 @@ cierra lut hello.cierra out/hello_lut                         # -> .cube and CLF
   longer ones.
 - **A checker and a renderer.** `cierra check` reports every problem it finds, with line and column, and
   `cierra render` runs the program on an image, in NumPy on the CPU.
-- **Compile targets.** DCTL, LUT (.cube and CLF), ASC CDL, a CUDA kernel and a WebGPU shader, all tested against
-  the renderer. When a target can't hold an op, the compiler refuses and names the node.
+- **Compile targets.** DCTL, LUT (.cube and CLF), ASC CDL, ACES AMF, a CUDA kernel and a WebGPU shader, all tested
+  against the renderer. When a target can't hold an op, the compiler refuses and names the node.
 - **Grading from written notes.** `cierra loop` writes the program from your notes with a language model (or, by
   default, a fixed set of rules). The model sees the notes and numbers about the frame, never the pixels.
 - **A web playground.** [web/playground/](web/playground/) grades a frame live in your browser, with scopes. Start it

@@ -134,7 +134,51 @@ COLOUR_ANCHORED_DOC = ("how strong the colours are, not their warmth. more = str
                        "never less")
 
 
-def _axes_prompt(notes):
+# Translation guide. On by default for local open-weight models (a provider with translate_guide = True), off for
+# hosted models until a run shows it does not hurt them; CIERRA_TRANSLATE_GUIDE=1 / 0 forces it either way. Measured
+# on a blind set with a 7B (2026-11-10): right-way-and-undamaged 0.525 -> 0.750, reversed 9 -> 4. A 7B model on
+# hard, shorthand notes reversed directions for three reasons, and dropped most protection requests (2026-11-10):
+# it translated the complaint instead of the ask ("it looks like X" / "not X"), it read lab and print words for
+# contrast as "more" whatever the verb said, and it did not know trade words (CTB, amber, open, print down).
+# Three rules, a short glossary of trade words, and two more worked examples. Written apart from every evaluation set.
+GUIDE = [
+    "Rules:",
+    "1. Translate what they WANT, not what they complain about. 'X, not Y', 'rather than Y', 'take the Y out', "
+    "'right now it looks like Y', 'stop it looking like Y': Y is the problem, so answer the opposite of Y.",
+    "2. The verb decides the direction, not the noun: 'reduce / ease / soften / calm / tame / pull back' a thing "
+    "means less of it; 'give / add / push / more' means more.",
+    "3. A request to protect, hold, keep or not lose something is its own axis (blacks, highlights); do not drop it, "
+    "and never answer it with darker or brighter.",
+    "Trade words:",
+    "- brighter: open up, lift, print lighter, more exposure. darker: print down, sit it lower, heavier, moodier.",
+    "- more contrast: punch, snap, bite, crisp, a harder or firmer print, more separation. less contrast: a soft or "
+    "gentle toe or shoulder, softer steps, easier separation, flat, fogged, a dupe, matte.",
+    "- warmer: amber, straw, honey, tungsten, CTO, sun. cooler: steel, CTB, north light, moonlight, a blue cast.",
+    "- more colour: juice, pop, sing, rich, opulent. less colour: restraint, drained, faded, tired, bleached.",
+    "- highlights keep soft: any ask to hold the brightest things (a window, sky, white objects): roll off, do not "
+    "burn, blow or clip them.",
+    "- blacks keep clean: any ask to hold the darkest things where they are: inky, solid, anchored, the floor, the toe.",
+    "- greens less: plants, grass or a green surface called too strong, lurid or artificial. faces warmer: faces "
+    "called grey, waxy or cold, or asked for sun or health.",
+    ""]
+GUIDE_EXAMPLES = [
+    ("Right now it is a dentist's waiting room. Lose the steel, bring some straw into it, ease the separation, and "
+     "hold the sky.", dict(warmth="warmer", contrast="less", highlights="keep soft")),
+    ("Go a shade heavier and add snap, though her coat stays inky. That hedge reads far too lurid.",
+     dict(brightness="darker", contrast="more", blacks="keep clean", greens="less")),
+]
+
+
+def guide_on(provider=None):
+    """Is the translation guide used? CIERRA_TRANSLATE_GUIDE (1 / 0) decides when set; else the provider's own
+    default (translate_guide: True for the open-weight driver)."""
+    env = os.environ.get("CIERRA_TRANSLATE_GUIDE")
+    if env in ("0", "1"):
+        return env == "1"
+    return bool(getattr(provider, "translate_guide", False))
+
+
+def _axes_prompt(notes, guided=None):
     lines = [f"{TRANSLATE_MARK} into one direction per axis.", "Axes and the answers allowed:"]
     anchored = os.environ.get("CIERRA_COLOUR_ANCHORS", "0") == "1"
     for axis, doc, opts in AXES:
@@ -145,7 +189,10 @@ def _axes_prompt(notes):
               "image would look like (a mood or a place implies light, colour and contrast). Use 'slightly' when "
               "the notes only hint at a direction, the plain answer when they clearly ask for it.",
               "Reply with exactly one line per axis, 'axis: answer', nothing else.", ""]
-    for ex_notes, ans in AXES_EXAMPLES:
+    guided = guide_on() if guided is None else guided
+    if guided:
+        lines += GUIDE
+    for ex_notes, ans in AXES_EXAMPLES + (GUIDE_EXAMPLES if guided else []):
         lines.append(f"Example notes: {ex_notes}")
         lines += [f"{axis}: {ans.get(axis, 'same')}" for axis, _, _ in AXES]
         lines.append("")
@@ -174,7 +221,7 @@ def translate_notes(notes, provider, style="axes"):
     A reply without axis lines (the rules driver echoes the notes) is read as phrases."""
     from .llm import _ask
     if style == "axes":
-        user = _axes_prompt(notes)
+        user = _axes_prompt(notes, guide_on(provider))
     else:
         user = (f"{TRANSLATE_MARK} into these phrases only: {', '.join(PHRASES.values())}.\n"
                 "Use each phrase at most once, only the ones the notes imply, comma-separated, nothing else.\n"

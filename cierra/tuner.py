@@ -43,6 +43,18 @@ CAPS = {("exposure", "stops"): 1.0, ("white_balance", "temperature"): 0.3, ("whi
         ("highlights_shadows", "highlights"): 1.5, ("highlights_shadows", "shadows"): 1.5,
         ("curve", "points"): 0.1, ("sat_vs_sat", "points"): 0.05, ("hue_vs_hue", "points"): 20.0,
         ("hue_vs_sat", "points"): 0.4, ("hue_vs_lum", "points"): 0.05, ("lum_vs_sat", "points"): 0.4}
+# Highlight roll-off (CIERRA_ROLLOFF=1, off by default until measured): the +-0.1 cap round the diagonal pulled a
+# model's shoulder curve back to the identity (a point at x 1.0 could not go below 0.9), which blocked the standard
+# fix for clipped highlights (first strong-model run, 2026-11-09). With it on, a log-space curve point at x may sit
+# down to 0.1 + ROLLOFF_SLOPE * (x - ROLLOFF_FROM) below the diagonal: 0.19 at x 0.7, 0.37 at x 1.0, 0.43 at 1.1.
+ROLLOFF_FROM, ROLLOFF_SLOPE = 0.55, 0.6
+
+
+def _rolloff_on():
+    import os
+    return os.environ.get("CIERRA_ROLLOFF", "0") == "1"
+
+
 POINT_NEUTRAL = {"hue_vs_hue": 0.0, "hue_vs_sat": 1.0, "hue_vs_lum": 0.0, "lum_vs_sat": 1.0}
 
 
@@ -135,7 +147,13 @@ def _limits(prog, knob):
         p = OPS[call.name].params[key].default
         neutral = (p[i] if isinstance(p, tuple) else p) if call.name in IDENTITY_DEFAULTS else None
     if cap is not None and neutral is not None:
-        lo, hi = max(lo, neutral - cap), min(hi, neutral + cap)
+        down = cap
+        if _rolloff_on() and call.name == "curve" and call.args.get("space", "log") == "log" and isinstance(v, tuple) \
+                and neutral >= ROLLOFF_FROM:
+            # a highlight roll-off: above ROLLOFF_FROM a curve point may sit further below the diagonal, more the
+            # brighter it is (never above the usual cap: a roll-off only brings highlights down)
+            down = cap + ROLLOFF_SLOPE * (neutral - ROLLOFF_FROM)
+        lo, hi = max(lo, neutral - down), min(hi, neutral + cap)
     sign = RULE_SIGN.get((nid, call.name, key))
     if sign is not None and neutral is not None:  # a node named for a direction never goes the other way
         lo, hi = (max(lo, neutral), hi) if sign > 0 else (lo, min(hi, neutral))

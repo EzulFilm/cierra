@@ -358,6 +358,7 @@ class OpenWeightProvider:
         _check_llm_url(self.url)
         self.model = model or os.environ.get("CIERRA_MODEL") or "Qwen/Qwen2.5-7B-Instruct"
         self.prompt_profile = os.environ.get("CIERRA_PROMPT") or "short"  # small models: the short reference
+        self.translate_guide = True  # small local models need the translation guide (cierra.notes.guide_on)
         self.timeout = float(timeout or os.environ.get("CIERRA_LLM_TIMEOUT") or 300.0)  # seconds; CPU runs are slow
         self.max_tokens, self.last_usage = max_tokens, {}
         self.usd_per_hour = float(os.environ.get("CIERRA_GPU_USD_PER_HOUR") or 0.0)

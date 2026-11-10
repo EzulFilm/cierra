@@ -184,8 +184,8 @@ the LUT in ΔE00 (`--input` says what the LUT expects, if it isn't ACEScct). A L
 and windows can't come back out of it. `cierra fit image reference fitted.cierra` does the same from a pair of
 images, an ungraded one and a graded reference of the same size.
 
-For ACES pipelines, `cierra.compile.amf.export_amf(program, folder, stem)` (Python) writes the look as a CLF in
-ACES2065-1 and an ACES Metadata File (AMF v2.0) that names the camera's input transform, the look file with its
+For ACES pipelines, `cierra amf look.cierra out/amf` writes the look as a CLF in ACES2065-1 and an ACES Metadata
+File (AMF v2.0) that names the camera's input transform (`--in KIND` to name another camera), the look file with its
 hash, and the ACES 2.0 output. The files validate against the Academy's schema and read back through OpenColorIO.
 
 ## Grading from notes

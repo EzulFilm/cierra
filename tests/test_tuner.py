@@ -152,3 +152,22 @@ def test_damage_guard_never_adds_a_damage_flag():
     off, _ = tune(start, "brighter, much brighter", img, damage_guard=False, explain=False)
     assert info["guard"]["on"] and not check_program(on, img)["flags"], info["guard"]
     assert check_program(off, img)["flags"] or info["guard"]["refused_steps"] == 0
+
+
+def test_rolloff_switch_lets_a_shoulder_curve_stay_and_nothing_else(monkeypatch):
+    """CIERRA_ROLLOFF=1 (off by default): a log-space curve point in the highlights may sit further below the diagonal
+    (a roll-off); shadows, points above the diagonal and display-space curves keep the usual cap."""
+    from cierra.tuner import bound
+    src = ("cierra 0.1\noutput aces2(display: srgb)\n"
+           "node soft_top = curve(points: [[0.0, 0.0], [0.55, 0.55], [0.8, 0.75], [1.1, 0.86]])\n"
+           "node lift = curve(points: [[0.0, 0.2], [0.5, 0.5], [1.0, 1.3]])\n"
+           "node disp = curve(points: [[0.0, 0.0], [0.5, 0.5], [1.0, 0.7]], space: display)\n"
+           "graph soft_top -> lift -> disp\n")
+    monkeypatch.delenv("CIERRA_ROLLOFF", raising=False)
+    off = " ".join(bound(load(src))[1])
+    assert "soft_top.points[3]: 0.86 -> 1" in off
+    monkeypatch.setenv("CIERRA_ROLLOFF", "1")
+    p, moved = bound(load(src))
+    on = " ".join(moved)
+    assert "soft_top" not in on and float(p.nodes["soft_top"].call.args["points"][3][1]) == 0.86
+    assert "lift.points[0]: 0.2 -> 0.1" in on and "lift.points[2]: 1.3 -> 1.1" in on and "disp.points[2]: 0.7 -> 0.9" in on

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `cierra amf PROGRAM OUT_DIR [--in KIND]`: the AMF export from the command line (the look CLF and the `.amf`);
+  a program a LUT cannot hold, or an output that is not ACES 2.0 SDR, exits 1 with the reason.
+- Translation guide for shorthand notes: three rules, a glossary of trade words and two more examples in the
+  translation prompt. On by default for local open-weight models, off for hosted ones; `CIERRA_TRANSLATE_GUIDE=1` / `0`
+  forces it. On a blind set of hard notes a 7B went from 21 to 30 of 40 notes graded the right way without damage.
+- In tuner mode the structure round's note checks come from the translation, not from words in the raw note.
 - Web playground (`web/playground`, `tools/playground_server.py`): paste a program, pick or drop a frame, and the
   grade, its output transform and scopes run in the browser on WebGPU. `tools/build_playground_static.py` builds a
   version with no server, where Cierra's compiler runs in the browser through Pyodide. Measured against the reference

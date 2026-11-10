@@ -50,3 +50,16 @@ def test_refusals(tmp_path):
                    tmp_path, "g")
     with pytest.raises(AMFError, match="Output"):
         export_amf(load("cierra 0.1\noutput display_encode()\nnode e = exposure(stops: 0.2)\ngraph e\n"), tmp_path, "d")
+
+
+def test_cli_amf(tmp_path, capsys):
+    from cierra.__main__ import main
+    assert main(["amf", str(LOOKS / "cinematic_modern.cierra"), str(tmp_path / "out"), "--in", "arri_logc4"]) in (None, 0)
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["cinematic_modern.amf",
+                                                                   "cinematic_modern_look_ACES2065-1.clf"]
+    assert "CSC.Arri.LogC4_to_ACES" in (tmp_path / "out" / "cinematic_modern.amf").read_text()
+    assert resolve(tmp_path / "out" / "cinematic_modern.amf")["looks"]
+    src = tmp_path / "g.cierra"
+    src.write_text("cierra 0.1\noutput aces2(display: srgb)\nnode g = grain(amount: 0.2, seed: 1)\ngraph g\n")
+    assert main(["amf", str(src), str(tmp_path / "out2")]) == 1
+    assert "NOT AN AMF" in capsys.readouterr().err

@@ -212,6 +212,10 @@ def main(argv=None):
     lu.add_argument("program"), lu.add_argument("out_dir"), lu.add_argument("--size", type=_int_in(2, MAX_CUBE), default=65)
     cd = sub.add_parser("cdl")
     cd.add_argument("program"), cd.add_argument("out_dir")
+    am = sub.add_parser("amf", help="the look as a CLF in ACES2065-1 and an ACES Metadata File (AMF v2.0)")
+    am.add_argument("program"), am.add_argument("out_dir")
+    am.add_argument("--in", dest="amf_in", default=None, metavar="KIND",
+                    help="the camera input to name in the AMF (default: the program's own input)")
     fi = sub.add_parser("fit")
     fi.add_argument("image"), fi.add_argument("reference"), fi.add_argument("out")
     fi.add_argument("--input", default="linear_rec709")
@@ -334,6 +338,14 @@ def _run(a):
             files = export_cdl(load_file(a.program), a.out_dir, Path(a.program).stem)
         except CDLError as e:
             print("NOT A CDL:", e, file=sys.stderr)
+            return 1
+        print(json.dumps(files, indent=1))
+    elif a.cmd == "amf":
+        from .compile.amf import AMFError, export_amf
+        try:
+            files = export_amf(load_file(a.program), a.out_dir, Path(a.program).stem, input=a.amf_in)
+        except AMFError as e:
+            print("NOT AN AMF:", e, file=sys.stderr)
             return 1
         print(json.dumps(files, indent=1))
     elif a.cmd == "fit":

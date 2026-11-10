@@ -81,6 +81,13 @@ def test_axes_examples_are_kept_apart_from_the_held_out_sets():
         held += [c["notes"] for c in json.loads((ROOT / "tests" / "data" / name).read_text())["cases"]]
     for ex in [ex for ex, _ in AXES_EXAMPLES] + [COLOUR_ANCHORED_DOC]:
         assert all(not (trigrams(ex) & trigrams(h)) for h in held), ex
+    # the translation guide was written after the later free-form sets existed: it is held apart from every set
+    # that is present (the older examples above predate those sets)
+    from cierra.notes import GUIDE, GUIDE_EXAMPLES
+    for extra in sorted((ROOT / "tests" / "data").glob("heldout_freeform_?.json")):
+        held += [c["notes"] for c in json.loads(extra.read_text())["cases"]]
+    for ex in [ex for ex, _ in GUIDE_EXAMPLES] + GUIDE:
+        assert all(not (trigrams(ex) & trigrams(h)) for h in held), ex
 
 
 def test_colour_anchors_change_only_the_colour_axis_and_only_when_asked(monkeypatch):
@@ -105,3 +112,32 @@ def test_axes_translation_keeps_slight_directions():
     phrases, _ = translate_notes("x", ScriptedProvider([reply]))
     assert phrases == "slightly warmer, slightly less colour, less contrast"
     assert [row[1] for row in probes_for(phrases)] == ["warmth", "contrast_down", "muted"]
+
+
+def test_translation_guide_is_off_by_default_and_only_adds(monkeypatch):
+    from cierra.notes import GUIDE_EXAMPLES, _axes_prompt
+    monkeypatch.delenv("CIERRA_TRANSLATE_GUIDE", raising=False)
+    off = _axes_prompt("x")
+    monkeypatch.setenv("CIERRA_TRANSLATE_GUIDE", "1")
+    on = _axes_prompt("x")
+    assert "Trade words" not in off and "Trade words" in on and GUIDE_EXAMPLES[0][0] in on
+    assert on.startswith(off.split("Example notes:")[0]) and on.rstrip().endswith("Notes from the colourist: x")
+
+
+def test_translation_guide_is_the_default_for_open_weight_models_only(monkeypatch):
+    from cierra.llm import OpenWeightProvider, RulesProvider
+    from cierra.notes import guide_on, translate_notes
+    monkeypatch.delenv("CIERRA_TRANSLATE_GUIDE", raising=False)
+    local = OpenWeightProvider(url="http://127.0.0.1:9/v1")
+    assert guide_on(local) and not guide_on(RulesProvider()) and not guide_on(ScriptedProvider([])) and not guide_on()
+    hosted = ScriptedProvider(["warmth: same"])
+    translate_notes("x", hosted)
+    assert "Trade words" not in hosted.calls[0]
+    as_local = ScriptedProvider(["warmth: same"])
+    as_local.translate_guide = True
+    translate_notes("x", as_local)
+    assert "Trade words" in as_local.calls[0]
+    monkeypatch.setenv("CIERRA_TRANSLATE_GUIDE", "0")  # the switch still wins, both ways
+    assert not guide_on(local)
+    monkeypatch.setenv("CIERRA_TRANSLATE_GUIDE", "1")
+    assert guide_on(RulesProvider())
