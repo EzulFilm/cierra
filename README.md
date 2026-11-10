@@ -4,7 +4,7 @@ Cierra is a small language for colour grades. A grade is a plain text file that 
 connect, so it can live in git next to everything else. Cierra checks the file, renders it, and compiles it to DCTL,
 3D LUTs (.cube and CLF), ASC CDL, a CUDA kernel or a WebGPU shader.
 
-I started it because I wanted my grading notes to end up as something I could check and keep, not as settings
+We started it because we wanted our grading notes to end up as something we could check and keep, not as settings
 inside one application's project. The NumPy renderer is the reference: every compiler is tested against it, and
 when a target can't hold an op, the compiler refuses and names the node rather than approximating it.
 
@@ -237,7 +237,7 @@ make eval-llm       # the held-out evaluations; tens of minutes on a CPU
 make llm-stop
 ```
 
-Cierra doesn't ship any weights. `make eval` scores the rules driver on held-out notes. I still compare
+Cierra doesn't ship any weights. `make eval` scores the rules driver on held-out notes. We still compare
 runs by eye with `tools/eval_sheet.py`; the checks don't judge the look.
 
 ### Into a grading application
