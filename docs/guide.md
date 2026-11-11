@@ -165,7 +165,8 @@ pair is checked through a CPU harness, not yet inside a grading application.
 
 For a Rec.709 project without colour management, `cierra dctl look.cierra out --in KIND` makes a DCTL that decodes
 the input (a camera log or display video), grades, and encodes for the display. Keep the `.cube` it writes next to
-the `.dctl`: it holds the ACES 2.0 output (97³, within 0.5 ΔE00 on the looks tested).
+the `.dctl`: it holds the ACES 2.0 output (97³, within 0.5 ΔE00 on the looks tested). A program with a `photo_graph` is
+refused for the two display inputs (`rec1886_photo`, `srgb_photo`): the engine runs that step and a DCTL cannot.
 
 If a target can't hold part of the graph, `--split` writes the parts it can and names what's left out. Here the
 local contrast now fits as a pair of DCTLs, so nothing is left out:
@@ -215,8 +216,9 @@ The chart is the question that matters, asked of three drivers: did the grade mo
 asked, on every point, without damage? The notes are free-form ("make it feel like a late-autumn evening"), the
 checks behind them are hidden from the driver, and the frames are the CC0 test photos. Read it with care: 88 notes,
 one run each; the checks are simple measures tuned on the test frames, not validated with viewers; and the second
-set, written by a model, turned out easier than the first. `tools/bench_notes.py` scores any run, and
-`tools/make_readme_charts.py` redraws the chart.
+set, written by a model, turned out easier than the first. `tools/bench_notes.py` scores any run,
+`tools/look_packs.py` builds a measured pack for each look in a folder, and `tools/make_readme_charts.py` redraws
+the chart.
 
 Choosing the driver:
 

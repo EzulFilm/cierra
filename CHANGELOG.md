@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fixed: `cierra dctl --in rec1886_photo` / `srgb_photo` on a program with a `photo_graph` compiled a DCTL that
+  skipped the photo_graph, so it differed from `cierra render` on the same input (up to 19 dE00 on the bundled
+  looks). It is now refused with the reason and the two ways round it.
+- Tools: `tools/look_packs.py` builds a pack per look (a DCTL and a LUT per camera log, the measured error of every
+  file against the engine, a damage report and a sheet); `tools/route_bench.py` runs the checked route on the programs
+  of an eval run with a simulated host and faulty hosts; `tools/replay_bounds.py` replays a run from the model's raw
+  replies with a switch off and on; `tools/relay_revise.py` runs one revision round through the relay driver;
+  `tools/freeze_set.py` validates a blind note set and freezes it by hash without printing it.
 - `cierra amf PROGRAM OUT_DIR [--in KIND]`: the AMF export from the command line (the look CLF and the `.amf`);
   a program a LUT cannot hold, or an output that is not ACES 2.0 SDR, exits 1 with the reason.
 - Translation guide for shorthand notes: three rules, a glossary of trade words and two more examples in the

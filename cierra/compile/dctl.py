@@ -992,6 +992,13 @@ def compile_dctl(prog, frame=0, split=False, input="acescct", output="acescct", 
     DCTL, the decode / encode is a DCTL part of its own ("in" / "out") around it."""
     from .dctl_wrap import describe, input_fn, output_call, output_fn, output_lattice
     input_fn(input)  # an unknown input fails here, before any compile
+    if input in ("rec1886_photo", "srgb_photo") and prog.photo_graph is not None:
+        # the engine runs photo_graph for a photo input and a DCTL cannot (photo_to_scene is not in DCTL): compiled
+        # silently, the two pictures differed by up to 19 ΔE00 on the bundled looks (found 2026-11-11)
+        raise DCTLError(f"input {input}: the program has a photo_graph, which runs for this input in the engine and is "
+                        "not in a DCTL, so the DCTL would not match the render. Compile a copy of the program without "
+                        "its photo_graph line (the DCTL then equals the engine on that copy), or put the application's "
+                        "own transform to ACEScct before the node and use input acescct")
     oc = output_call(prog, output)
     parts = compile_parts(_Gen, prog, frame, split)
     if input == "acescct" and oc is None:

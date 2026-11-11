@@ -85,3 +85,19 @@ def test_wrapper_refusals_and_defaults():
     assert output_call(load("cierra 0.1\noutput aces2(display: srgb)\n"), "rec1886").args["display"] == "rec1886"
     plain, = compile_dctl(prog)
     assert "cr_in" not in plain["dctl"] and "DEFINE_LUT" not in plain["dctl"] and "luts" not in plain
+
+
+def test_photo_input_with_a_photo_graph_is_refused_not_approximated():
+    """The engine runs photo_graph for a photo input and a DCTL cannot hold it: compiled silently, the DCTL and the
+    render differed (19 dE00 on the bundled looks). Refused with the reason; without the photo_graph, or as an ACEScct
+    node, the same program compiles."""
+    from cierra.compile.dctl import DCTLError
+    src = ("cierra 0.1\ninput srgb_photo\noutput aces2(display: srgb)\nnode s = photo_to_scene()\n"
+           "node w = white_balance(temperature: 0.1)\nphoto_graph s\ngraph w\n")
+    for kind in ("rec1886_photo", "srgb_photo"):
+        with pytest.raises(DCTLError, match="photo_graph"):
+            compile_dctl(load(src), input=kind, output="program")
+    assert compile_dctl(load(src))[0]["dctl"]  # an ACEScct node: fine, the project's own transforms surround it
+    assert compile_dctl(load(src), input="sony_slog3_sgamut3", output="program")[0]["dctl"]  # photo_graph does not run
+    plain = src.replace("node s = photo_to_scene()\n", "").replace("photo_graph s\n", "")
+    assert compile_dctl(load(plain), input="rec1886_photo", output="program")[0]["dctl"]
