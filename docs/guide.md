@@ -188,6 +188,9 @@ For ACES pipelines, `cierra amf look.cierra out/amf` writes the look as a CLF in
 File (AMF v2.0) that names the camera's input transform (`--in KIND` to name another camera), the look file with its
 hash, and the ACES 2.0 output. The files validate against the Academy's schema and read back through OpenColorIO.
 
+ACES and AMF are specifications of the Academy of Motion Picture Arts and Sciences. Cierra is not affiliated with or
+endorsed by the Academy.
+
 ## Grading from notes
 
 ```

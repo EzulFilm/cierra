@@ -60,3 +60,6 @@ More detail on all of this is in [docs/guide.md](docs/guide.md); changes are in 
 Copyright 2026 CIERRAEZUL LLC. Apache License 2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE). "Cierra" is a
 name used by CIERRAEZUL LLC and is not licensed under the Apache License. The test photos are CC0 camera RAWs from
 raw.pixls.us.
+
+ACES and AMF are specifications of the Academy of Motion Picture Arts and Sciences. Cierra is not affiliated with or
+endorsed by the Academy.
