@@ -291,6 +291,26 @@ class _Gen:
             t = math.radians(a["degrees"])
             cs, sn = f(math.cos(t)), f(math.sin(t))
             return opp + [self.decl(("y2", "y"), ("cb2", f"cb * {cs} - cr * {sn}"), ("cr2", f"cb * {sn} + cr * {cs}"))] + back
+        if name == "veil":  # engine.op_veil
+            if not a["amount"]:
+                return ["o0 = r; o1 = g; o2 = b;"]
+            s = f(1.0 / (1.0 + a["amount"]) if a["hold_grey"] else 1.0)
+            return [f"o{i} = cr_cct_enc((cr_cct_dec({c}) + {f(a['amount'] * 0.18 * t)}) * {s});"
+                    for i, (c, t) in enumerate(zip("rgb", a["tint"]))]
+        if name == "matte":  # engine.op_matte
+            b, m = a["black"], GREY + a["white"] / 17.52
+            k = m - a["knee"] / 17.52
+            code = ([self.decl(*[(f"q{i}", f"cr_cct_enc((cr_cct_dec({c}) + {f(b * 0.18 * t)}) * {f(1.0 / (1.0 + b))})")
+                                 for i, (c, t) in enumerate(zip("rgb", a["ink"]))])] if b
+                    else [self.decl(("q0", "r"), ("q1", "g"), ("q2", "b"))])
+            if a["white"] < 8:
+                code += [self.decl(("tp", "cr_luma(q0, q1, q2)")),
+                         self.decl(("xx", f"_fmaxf(tp - {f(k)}, 0.0f) / {f(m - k)}")),
+                         self.decl(("dd", self.sel(f"tp > {f(k)}", f"{f(k)} + {f(m - k)} * xx / (1.0f + xx) - tp", "0.0f")))]
+            else:
+                code += [self.decl(("dd", "0.0f"))]
+            code += [self.decl(("ww", f"cr_smoothstep({f(GREY)}, {f(m)}, cr_luma(q0 + dd, q1 + dd, q2 + dd))"))]
+            return code + [f"o{i} = q{i} + dd + {f(math.log2(p) / 17.52)} * ww;" for i, p in enumerate(a["paper"])]
         if name == "vibrance":
             return opp + [self.decl(("c", "_sqrtf(cb * cb + cr * cr)")),
                           self.decl(("k", f"1.0f + {f(a['amount'])} * (1.0f - cr_smoothstep(0.0f, 0.12f, c))")),

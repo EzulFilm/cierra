@@ -114,7 +114,7 @@ longer ones. The photos are CC0 camera RAWs from raw.pixls.us; `python tools/mak
 
 ## The language
 
-[docs/authoring.md](authoring.md) lists the 33 ops and 10 masks with their parameters and defaults, and
+[docs/authoring.md](authoring.md) lists the 35 ops and 10 masks with their parameters and defaults, and
 [docs/spec.md](spec.md) is the specification. Most of the ops are what you'd find on a grading panel (wheels,
 CDL, curves, hue curves, mixers); some are spatial, like blur, glow, halation, local contrast and noise reduction.
 Masks combine with `and`, `or` and `not`, values can be keyframed, and branches can be blended back together.

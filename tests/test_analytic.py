@@ -376,3 +376,54 @@ def test_aces2_patch_holds_over_the_whole_range():
         assert blue.min() > 0.99, blue.ravel()
         inv = C.aces2_inverse(np.ascontiguousarray(rng.uniform(0, 1, (3, 1, 200000))), display)
         assert np.isfinite(inv).all(), display
+
+
+def test_veil_is_a_uniform_light_added_in_linear_and_holds_grey():
+    """veil: out = (in + amount * 0.18 * tint) / (1 + amount) in AP1 linear light. Black lifts to a known level, 18 %
+    grey stays, highlights ease down; hold_grey false only adds; a tint colours the black and leaves grey near neutral."""
+    import numpy as np
+    from cierra import colour as C
+    from cierra.engine import grade_working
+    lin = np.array([0.0, 0.18, 1.0, 4.0])
+    code = C.acescct_encode(lin)[None, None, :].repeat(3, 0)
+
+    def out(node):
+        prog = load(f"cierra 0.1\noutput acescct()\nnode v = {node}\ngraph v\n")
+        return C.acescct_decode(np.asarray(grade_working(code, prog)))[:, 0]
+
+    np.testing.assert_allclose(out("veil(amount: 0.1)")[0], (lin + 0.018) / 1.1, rtol=1e-9, atol=1e-12)
+    np.testing.assert_allclose(out("veil(amount: 0.1, hold_grey: false)")[0], lin + 0.018, rtol=1e-9, atol=1e-12)
+    warm = out("veil(amount: 0.1, tint: [1.5, 1, 0.5])")
+    np.testing.assert_allclose(warm[:, 0], np.array([0.027, 0.018, 0.009]) / 1.1, rtol=1e-9)
+    assert warm[0, 0] > warm[1, 0] > warm[2, 0] and abs(warm[1, 1] - 0.18) < 1e-12
+    np.testing.assert_array_equal(out("veil()")[0], C.acescct_decode(code)[0, 0])
+
+
+def test_matte_has_an_ink_black_and_a_paper_white_and_keeps_grey():
+    """matte: black is the veil (grey held); white is a ceiling the luma rolls off to, never passed, with
+    hue kept (the same code offset on every channel); below the knee nothing moves; paper tints only above grey."""
+    import numpy as np
+    from cierra import colour as C
+    from cierra.colour import luma_cv
+    from cierra.engine import grade_working
+    from cierra.ops import GREY
+    lin = np.array([0.0, 0.18, 0.5, 2.0, 16.0, 200.0])
+    code = C.acescct_encode(lin)[None, None, :].repeat(3, 0)
+    code[2] -= 0.05  # a coloured pixel row: blue lower
+
+    def out(node):
+        prog = load(f"cierra 0.1\noutput acescct()\nnode v = {node}\ngraph v\n")
+        return np.asarray(grade_working(code, prog))[:, 0]
+
+    o = out("matte(white: 3)")
+    m, k = GREY + 3 / 17.52, GREY + 1.5 / 17.52
+    y_in, y_out = luma_cv(code[:, 0]), luma_cv(o)
+    assert y_out.max() < m and np.all(np.diff(o[0]) > 0)                   # luma never passes the ceiling, stays monotone
+    np.testing.assert_allclose(o[:, y_in <= k], code[:, 0][:, y_in <= k], atol=1e-12)  # below the knee: untouched
+    np.testing.assert_allclose(o[0] - o[2], 0.05, atol=1e-12)              # hue kept: one offset for all channels
+    b = C.acescct_decode(out("matte(black: 0.1)"))
+    np.testing.assert_allclose(b[0], (lin + 0.018) / 1.1, rtol=1e-9, atol=1e-12)
+    p = out("matte(paper: [1.03, 1, 0.92])")
+    np.testing.assert_allclose(p[:, :2], code[:, 0][:, :2], atol=1e-12)    # black and grey: no tint
+    assert p[0, -1] > code[0, 0, -1] and p[2, -1] < code[2, 0, -1]         # the top goes cream
+    np.testing.assert_array_equal(out("matte()"), code[:, 0])

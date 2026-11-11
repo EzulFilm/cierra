@@ -197,6 +197,8 @@ Pointwise (LUT and DCTL):
 | density | amount −1..2 (0) | O = opp⁻¹(Y − amount·C, Cb, Cr) |
 | hue_rotate | degrees −180..180 (0) | (Cb, Cr) rotated by degrees; O = opp⁻¹(Y, Cb′, Cr′) |
 | vibrance | amount −1..1 (0) | k = 1 + amount·(1 − smoothstep(0, 0.12, C)); O = opp⁻¹(Y, k·Cb, k·Cr) |
+| veil | amount 0..1 (0); tint rgb 0..2 (1, 1, 1); hold_grey bool (true) | L = dec(W) in AP1 linear; O = enc((L + amount·0.18·tint)·s), s = 1/(1 + amount) with hold_grey, else 1 |
+| matte | black 0..1 (0); white 1..8 stops (8 = none); knee 0.5..4 stops (1.5); ink rgb 0..2 (1, 1, 1); paper rgb 0.5..1.5 (1, 1, 1) | W₁ = enc((dec(W) + black·0.18·ink)/(1 + black)); m = G + white/17.52, k = m − knee/17.52, t = Y(W₁), x = max(t − k, 0)/(m − k); W₂ = W₁ + (k + (m − k)·x/(1 + x) − t) where t > k; O = W₂ + log2(paper)/17.52 · smoothstep(G, m, Y(W₂)) |
 | split_tone | shadow_hue 0..360 (315), shadow_amount 0..0.1 (0), highlight_hue 0..360 (141), highlight_amount 0..0.1 (0), balance −0.2..0.3 (0) cv | p = G + balance; s = (1 − smoothstep(0.15, p, Y))·shadow_amount; t = smoothstep(p, 0.75, Y)·highlight_amount; O = opp⁻¹(Y, Cb + s·cos h_s + t·cos h_h, Cr + s·sin h_s + t·sin h_h) |
 | gamut_compress | threshold rgb 0.5..0.99 (0.815, 0.803, 0.880), limit rgb 1.01..2 (1.147, 1.264, 1.312), power 1..3 (1.2) | L = ACEScct⁻¹(W) (linear AP1); a = max(L); d = (a − L)/abs(a) (0 when a = 0); per channel s = (lim − thr)/(((1 − thr)/(lim − thr))^(−power) − 1)^(1/power); d′ = d below thr, else thr + s·x/(1 + x^power)^(1/power), x = (d − thr)/s; O = ACEScct(a − d′·abs(a)). The open ACES reference gamut compression |
 
@@ -332,7 +334,7 @@ parser cannot produce them. Rejections list every problem with line and node.
 Warnings (the program is legal but probably not what was meant): a node not in any graph; a node that is `off`; a
 node whose op is the identity at its defaults and whose parameters are all at their defaults (it does nothing). Only
 these ops are the identity at their defaults (`identity_with_defaults` in the manifest): exposure, white_balance,
-printer_lights, wheels, cdl, contrast, rgb_mixer, density, hue_rotate, vibrance, split_tone, saturation,
+printer_lights, wheels, cdl, contrast, rgb_mixer, density, hue_rotate, vibrance, veil, matte, split_tone, saturation,
 highlights_shadows. Every other op does something with its defaults
 (vignette darkens by 0.1, glow adds 0.3, blur blurs 2 px, photo_to_scene decodes the photo), so no warning. Host-dependent lints (`cierra.checker.lint`, given
 the host's context — clip length, provided planes, available segment ids, input kind, wanted targets): keyframes past

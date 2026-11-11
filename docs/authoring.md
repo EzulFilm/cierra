@@ -361,6 +361,16 @@ Operations:
     degrees: num -180..180 [deg], default 0.0. counter-clockwise on the hue circle
   vibrance()  [primary, pointwise] Saturation weighted toward muted colours: k = 1 + amount · (1 − smoothstep(0, 0.12, C)); already saturated colours move little.
     amount: num -1..1 [x], default 0.0. + richer muted colours, − calmer
+  veil()  [primary, pointwise] A thin, even veil of light over the whole picture: the matte look of a print under room light, haze, or a low-contrast filter. In linear light: out = (in + amount · 0.18 · tint) / (1 + amount) with hold_grey, so black lifts, 18 % grey stays and highlights ease down; shadows lose a little colour, as under real flare. Unlike a lifted curve it is one physical quantity. 0.03 is a breath, 0.08 clearly matte, 0.2 heavy.
+    amount: num 0..1 [x], default 0.0. veil light as a fraction of 18 % grey
+    tint: rgb each 0..2 [x], default (1.0, 1.0, 1.0). colour of the veil (AP1 linear); [1.08, 1, 0.9] is a warm paper
+    hold_grey: bool, default True. re-expose so 18 % grey keeps its level (false: the veil only adds)
+  matte()  [primary, pointwise] The matte of a print on uncoated paper: no true black and no true white. black is a veil of light (as in veil, grey held), so the darkest tone is an ink black, not zero; white is a ceiling, in stops over 18 % grey, that the luma rolls off to from knee stops below it (every channel moves by the same amount, so colour is kept and bright saturated colours are not dulled), so highlights end at paper white; ink and paper tint the two ends. Mid-tones keep their contrast. Diffuse white is 2.5 stops over grey: white 3.5 only tames speculars, 2.5 gives a clear paper white. black 0.04 is slight, 0.1 strong.
+    black: num 0..1 [x], default 0.0. ink black: veil light as a fraction of 18 % grey
+    white: num 1..8 [stops], default 8.0. paper white: ceiling over 18 % grey; 8 = no ceiling
+    knee: num 0.5..4 [stops], default 1.5. the roll-off starts this far below the ceiling
+    ink: rgb each 0..2 [x], default (1.0, 1.0, 1.0). colour of the black (AP1 linear)
+    paper: rgb each 0.5..1.5 [x], default (1.0, 1.0, 1.0). colour of the white: linear gains that fade in from grey to the ceiling; [1.03, 1, 0.92] is a cream paper
   split_tone()  [primary, pointwise] Tints shadows and highlights toward two hues (opponent-plane offsets weighted by luma), balance moves the split point.
     shadow_hue: num 0..360 [deg], default 315.0. 315 teal, 141 skin / orange
     shadow_amount: num 0..0.1 [chroma], default 0.0. 0.01 subtle

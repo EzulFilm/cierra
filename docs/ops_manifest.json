@@ -2150,6 +2150,89 @@
     "reference": true
    }
   },
+  "matte": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "The matte of a print on uncoated paper: no true black and no true white. black is a veil of light (as in veil, grey held), so the darkest tone is an ink black, not zero; white is a ceiling, in stops over 18 % grey, that the luma rolls off to from knee stops below it (every channel moves by the same amount, so colour is kept and bright saturated colours are not dulled), so highlights end at paper white; ink and paper tint the two ends. Mid-tones keep their contrast. Diffuse white is 2.5 stops over grey: white 3.5 only tames speculars, 2.5 gives a clear paper white. black 0.04 is slight, 0.1 strong.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "black": {
+     "default": 0.0,
+     "doc": "ink black: veil light as a fraction of 18 % grey",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "ink": {
+     "default": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "doc": "colour of the black (AP1 linear)",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      0.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "knee": {
+     "default": 1.5,
+     "doc": "the roll-off starts this far below the ceiling",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.5,
+      4.0
+     ],
+     "required": false,
+     "unit": "stops"
+    },
+    "paper": {
+     "default": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "doc": "colour of the white: linear gains that fade in from grey to the ceiling; [1.03, 1, 0.92] is a cream paper",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      0.5,
+      1.5
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "white": {
+     "default": 8.0,
+     "doc": "paper white: ceiling over 18 % grey; 8 = no ceiling",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      1.0,
+      8.0
+     ],
+     "required": false,
+     "unit": "stops"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
+    "reference": true
+   }
+  },
   "photo_to_scene": {
    "aux_planes": [],
    "category": "transform",
@@ -2642,6 +2725,57 @@
    "targets": {
     "dctl": false,
     "lut": false,
+    "reference": true
+   }
+  },
+  "veil": {
+   "aux_planes": [],
+   "category": "primary",
+   "doc": "A thin, even veil of light over the whole picture: the matte look of a print under room light, haze, or a low-contrast filter. In linear light: out = (in + amount \u00b7 0.18 \u00b7 tint) / (1 + amount) with hold_grey, so black lifts, 18 % grey stays and highlights ease down; shadows lose a little colour, as under real flare. Unlike a lifted curve it is one physical quantity. 0.03 is a breath, 0.08 clearly matte, 0.2 heavy.",
+   "identity_with_defaults": true,
+   "kind": "pointwise",
+   "params": {
+    "amount": {
+     "default": 0.0,
+     "doc": "veil light as a fraction of 18 % grey",
+     "keyframable": true,
+     "kind": "num",
+     "range": [
+      0.0,
+      1.0
+     ],
+     "required": false,
+     "unit": "x"
+    },
+    "hold_grey": {
+     "default": true,
+     "doc": "re-expose so 18 % grey keeps its level (false: the veil only adds)",
+     "keyframable": false,
+     "kind": "bool",
+     "required": false,
+     "unit": null
+    },
+    "tint": {
+     "default": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "doc": "colour of the veil (AP1 linear); [1.08, 1, 0.9] is a warm paper",
+     "keyframable": true,
+     "kind": "rgb",
+     "range": [
+      0.0,
+      2.0
+     ],
+     "required": false,
+     "unit": "x"
+    }
+   },
+   "photo_graph_only": false,
+   "targets": {
+    "dctl": true,
+    "lut": true,
     "reference": true
    }
   },

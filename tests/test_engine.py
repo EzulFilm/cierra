@@ -25,7 +25,7 @@ IDENTITY = [
     "grain(amount: 0, seed: 1)", "glow(strength: 0)", "halation(strength: 0)", "diffusion(strength: 0)",
     "blur(radius_px: 0)", "sharpen(amount: 0)", "local_contrast(amount: 0)", "highlights_shadows()",
             "guided_detail(amount: 0)", "denoise(strength: 0)", "rgb_mixer()", "density()", "hue_rotate()",
-            "vibrance()", "split_tone()", "sat_vs_lum(points: [[0, 0], [1, 0]])"]
+            "vibrance()", "veil()", "matte()", "split_tone()", "sat_vs_lum(points: [[0, 0], [1, 0]])"]
 
 
 @pytest.mark.parametrize("node", IDENTITY)

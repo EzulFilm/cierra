@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- New op `matte`: no true black and no true white, like a print on uncoated paper. `black` is an ink black (a veil
+  of light, 18 % grey held), `white` a ceiling in stops over grey that luma rolls off to (every channel moves by the
+  same amount, so colour is kept), `ink` and `paper` tint the two ends. One global curve; mid-tones keep their contrast.
+- New op `veil`: a uniform veil of light over the whole picture, like haze or a print under room light. In linear
+  light: out = (in + amount · 0.18 · tint) / (1 + amount), so black lifts, 18 % grey stays, highlights ease down.
+  Both ops are pointwise: reference engine, DCTL, CUDA, WGSL and LUT. 35 ops.
 - `docs/evaluation.md`: how grading from notes is measured, the results on the two note sets in the repository, the
   tuner guard and translation guide measurements, and what the numbers do not show.
 - Fixed: `cierra dctl --in rec1886_photo` / `srgb_photo` on a program with a `photo_graph` compiled a DCTL that

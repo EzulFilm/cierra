@@ -163,6 +163,24 @@ _op("hue_rotate", "primary", "Rotates every hue by the same angle (opponent Cb /
 _op("vibrance", "primary", "Saturation weighted toward muted colours: k = 1 + amount · (1 − smoothstep(0, 0.12, C)); "
     "already saturated colours move little.",
     {"amount": P("num", -1.0, 1.0, 0.0, "x", "+ richer muted colours, − calmer")})
+_op("veil", "primary", "A thin, even veil of light over the whole picture: the matte look of a print under room "
+    "light, haze, or a low-contrast filter. In linear light: out = (in + amount · 0.18 · tint) / (1 + amount) with "
+    "hold_grey, so black lifts, 18 % grey stays and highlights ease down; shadows lose a little colour, as under real "
+    "flare. Unlike a lifted curve it is one physical quantity. 0.03 is a breath, 0.08 clearly matte, 0.2 heavy.",
+    {"amount": P("num", 0.0, 1.0, 0.0, "x", "veil light as a fraction of 18 % grey"),
+     "tint": P("rgb", 0.0, 2.0, (1.0, 1.0, 1.0), "x", "colour of the veil (AP1 linear); [1.08, 1, 0.9] is a warm paper"),
+     "hold_grey": P("bool", default=True, doc="re-expose so 18 % grey keeps its level (false: the veil only adds)")})
+_op("matte", "primary", "The matte of a print on uncoated paper: no true black and no true white. black is a veil of "
+    "light (as in veil, grey held), so the darkest tone is an ink black, not zero; white is a ceiling, in stops over "
+    "18 % grey, that the luma rolls off to from knee stops below it (every channel moves by the same amount, so "
+    "colour is kept and bright saturated colours are not dulled), so highlights end at paper white; ink and paper tint the two ends. Mid-tones keep their contrast. Diffuse white is 2.5 stops over grey: "
+    "white 3.5 only tames speculars, 2.5 gives a clear paper white. black 0.04 is slight, 0.1 strong.",
+    {"black": P("num", 0.0, 1.0, 0.0, "x", "ink black: veil light as a fraction of 18 % grey"),
+     "white": P("num", 1.0, 8.0, 8.0, "stops", "paper white: ceiling over 18 % grey; 8 = no ceiling"),
+     "knee": P("num", 0.5, 4.0, 1.5, "stops", "the roll-off starts this far below the ceiling"),
+     "ink": P("rgb", 0.0, 2.0, (1.0, 1.0, 1.0), "x", "colour of the black (AP1 linear)"),
+     "paper": P("rgb", 0.5, 1.5, (1.0, 1.0, 1.0), "x", "colour of the white: linear gains that fade in from grey "
+                "to the ceiling; [1.03, 1, 0.92] is a cream paper")})
 _op("split_tone", "primary", "Tints shadows and highlights toward two hues (opponent-plane offsets weighted by luma), "
     "balance moves the split point.",
     {"shadow_hue": P("num", 0.0, 360.0, 315.0, "deg", "315 teal, 141 skin / orange"),
@@ -258,7 +276,7 @@ _op("highlights_shadows", "spatial", "Local tone from a blurred luma: highlights
 # Ops whose defaults are the identity (all defaults = the node does nothing). Every other op does something with its
 # defaults (vignette darkens 0.1, glow adds 0.3, blur blurs 2 px, photo_to_scene decodes the photo).
 IDENTITY_DEFAULTS = frozenset({"exposure", "white_balance", "printer_lights", "wheels", "cdl", "contrast", "rgb_mixer",
-                               "density", "hue_rotate", "vibrance", "split_tone",
+                               "density", "hue_rotate", "vibrance", "veil", "matte", "split_tone",
                                "saturation", "highlights_shadows"})
 
 # Node and layer modifiers (not op parameters).

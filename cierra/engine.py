@@ -297,6 +297,32 @@ def op_hue_rotate(code, ctx, degrees):
     return from_opponent(y, *_rotate(cb, cr, degrees))
 
 
+def op_veil(code, ctx, amount, tint, hold_grey):
+    """A uniform veil of light, added in linear light (AP1), then re-exposed so 18 % grey holds."""
+    if amount == 0:
+        return code
+    v = const(amount * 0.18 * np.asarray(tint, dtype=np.float64), code).reshape(3, *([1] * (code.ndim - 1)))
+    return C.acescct_encode((C.acescct_decode(code) + v) * ((1.0 / (1.0 + amount)) if hold_grey else 1.0))
+
+
+def op_matte(code, ctx, black, white, knee, ink, paper):
+    """Ink black (a veil, grey held), paper white (a ceiling the luma rolls off to), tinted ends."""
+    nx = xp(code)
+    if black:
+        v = const(black * 0.18 * np.asarray(ink, dtype=np.float64), code).reshape(3, *([1] * (code.ndim - 1)))
+        code = C.acescct_encode((C.acescct_decode(code) + v) * (1.0 / (1.0 + black)))
+    m = GREY + white / 17.52
+    if white < 8:
+        k = m - knee / 17.52
+        top = luma(code)[None]
+        x = nx.maximum(top - k, 0) / (m - k)
+        code = code + nx.where(top > k, k + (m - k) * x / (1 + x) - top, 0.0)
+    if any(p != 1 for p in paper):
+        g = const(np.log2(np.asarray(paper, dtype=np.float64)) / 17.52, code).reshape(3, *([1] * (code.ndim - 1)))
+        code = code + g * smoothstep(GREY, m, luma(code))[None]
+    return code
+
+
 def op_vibrance(code, ctx, amount):
     y, _, c, cb, cr = opponent(code)
     k = 1 + amount * (1 - smoothstep(0.0, 0.12, c))
