@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `docs/evaluation.md`: how grading from notes is measured, the results on the two note sets in the repository, the
+  tuner guard and translation guide measurements, and what the numbers do not show.
 - Fixed: `cierra dctl --in rec1886_photo` / `srgb_photo` on a program with a `photo_graph` compiled a DCTL that
   skipped the photo_graph, so it differed from `cierra render` on the same input (up to 19 dE00 on the bundled
   looks). It is now refused with the reason and the two ways round it.

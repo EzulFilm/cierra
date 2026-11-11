@@ -218,7 +218,7 @@ checks behind them are hidden from the driver, and the frames are the CC0 test p
 one run each; the checks are simple measures tuned on the test frames, not validated with viewers; and the second
 set, written by a model, turned out easier than the first. `tools/bench_notes.py` scores any run,
 `tools/look_packs.py` builds a measured pack for each look in a folder, and `tools/make_readme_charts.py` redraws
-the chart.
+the chart. [evaluation.md](evaluation.md) has the method, the numbers behind the chart and what they don't show.
 
 Choosing the driver:
 
